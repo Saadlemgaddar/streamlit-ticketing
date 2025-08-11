@@ -3,7 +3,6 @@ flask-pymongo==2.3.0
 Flask-WTF==1.2.1
 python-dotenv==1.0.1
 pandas
-bson==0.5.10
 gunicorn
 pymongo
 dnspython
