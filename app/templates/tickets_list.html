@@ -1,0 +1,327 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <h1 class="h3 mb-0">📋 Gestion des tickets</h1>
+  <div class="d-flex gap-2">
+    <button id="btn_export_filtered" class="btn btn-sm btn-outline-secondary">
+      <i class="bi bi-filter-circle me-1"></i>Exporter (filtré)
+    </button>
+    <a href="{{ url_for('tickets.export_csv') }}" class="btn btn-sm btn-primary">
+      <i class="bi bi-download me-1"></i>Exporter tout (CSV)
+    </a>
+  </div>
+</div>
+
+<!-- Filtres -->
+<div class="card mb-4 shadow-sm">
+  <div class="card-header bg-white border-0">
+    <div class="d-flex justify-content-between align-items-center">
+      <h5 class="mb-0"><i class="bi bi-funnel me-2"></i>Filtres</h5>
+      <button id="btn_reset" class="btn btn-sm btn-outline-secondary">
+        <i class="bi bi-arrow-counterclockwise me-1"></i>Réinitialiser
+      </button>
+    </div>
+  </div>
+  <div class="card-body">
+    <div class="row g-3">
+      <!-- Date Range -->
+      <div class="col-md-6">
+        <div class="row g-2">
+          <div class="col-md-6">
+            <label class="form-label small text-muted">Date de début</label>
+            <input type="date" id="flt_dmin" class="form-control form-control-sm">
+          </div>
+          <div class="col-md-6">
+            <label class="form-label small text-muted">Date de fin</label>
+            <input type="date" id="flt_dmax" class="form-control form-control-sm">
+          </div>
+        </div>
+      </div>
+
+      <!-- Quick Filters -->
+      <div class="col-md-6">
+        <div class="row g-2">
+          <div class="col-md-4">
+            <label class="form-label small text-muted">Agent</label>
+            <select id="flt_agent" class="form-select form-select-sm">
+              <option value="">Tous</option>
+              {% for a in agents %}<option value="{{a}}">{{a}}</option>{% endfor %}
+            </select>
+          </div>
+          <div class="col-md-4">
+            <label class="form-label small text-muted">Statut</label>
+            <select id="flt_statut" class="form-select form-select-sm">
+              <option value="">Tous</option>
+              {% for s in statuts %}<option value="{{s}}">{{s}}</option>{% endfor %}
+            </select>
+          </div>
+          <div class="col-md-4">
+            <label class="form-label small text-muted">Magasin</label>
+            <select id="flt_mag" class="form-select form-select-sm">
+              <option value="">Tous</option>
+              {% for m in magasins %}<option value="{{m}}">{{m}}</option>{% endfor %}
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <!-- Search and Theme -->
+      <div class="col-md-8">
+        <label class="form-label small text-muted">Recherche</label>
+        <div class="input-group input-group-sm">
+          <span class="input-group-text"><i class="bi bi-search"></i></span>
+          <input id="flt_q" class="form-control" placeholder="ID, client, commande, commentaires...">
+        </div>
+      </div>
+      <div class="col-md-4">
+        <label class="form-label small text-muted">Thématique</label>
+        <select id="flt_them" class="form-select form-select-sm">
+          <option value="">Toutes</option>
+          {% for t in thems %}<option value="{{t}}">{{t}}</option>{% endfor %}
+        </select>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Summary Stats -->
+<div class="alert alert-light border d-flex flex-wrap justify-content-between align-items-center py-2 px-3 mb-3">
+  <div class="d-flex align-items-center">
+    <span class="badge bg-primary rounded-pill me-2" id="sumCount">0</span>
+    <span class="small text-muted">tickets trouvés</span>
+  </div>
+  <div class="d-flex gap-4">
+    <div class="text-center">
+      <div class="small text-muted">Total commandes</div>
+      <div class="fw-semibold" id="sumCmd">0,00&nbsp;MAD</div>
+    </div>
+    <div class="text-center">
+      <div class="small text-muted">Total promo</div>
+      <div class="fw-semibold" id="sumPromo">0,00&nbsp;MAD</div>
+    </div>
+  </div>
+</div>
+
+<!-- Tickets Table -->
+<div class="card border-0 shadow-sm">
+  <div class="card-body p-0">
+    <div class="table-responsive">
+      <table id="ticketsTbl" class="table table-hover align-middle mb-0" style="width:100%">
+        <thead class="table-light">
+          <tr>
+            <th width="40"></th>
+            <th width="40"></th>
+            <th>ID</th>
+            <th>Date</th>
+            <th>Agent</th>
+            <th>Client</th>
+            <th>Magasin</th>
+            <th>Thématique</th>
+            <th>Statut</th>
+            <th class="text-end">Commande</th>
+            <th class="text-end">Promo</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for r in rows %}
+          {% set status = (r["statut"] or "") | lower %}
+          <tr>
+            <td class="text-center">
+              <a href="{{ url_for('tickets.edit_ticket', id=r['id']) }}" class="btn btn-sm btn-outline-primary px-2 py-1" title="Éditer">
+                <i class="bi bi-pencil"></i>
+              </a>
+            </td>
+            <td class="text-center">
+              <form action="{{ url_for('tickets.close_ticket', id=r['id']) }}" method="post" onsubmit="return confirm('Clôturer le ticket {{ r['id'] }} ?')">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button class="btn btn-sm btn-outline-danger px-2 py-1" title="Clôturer"
+                        {% if status in ['clôturé','cloturé','resolu','résolu'] %}disabled{% endif %}>
+                  <i class="bi bi-lock"></i>
+                </button>
+              </form>
+            </td>
+            <td><span class="font-monospace">{{ r["id"] }}</span></td>
+            <td data-ordervalue="{{ r['date_creation']|default('') }}"><span class="small">{{ r["date_creation"] }}</span></td>
+            <td><span class="badge bg-light text-dark">{{ r["agent"] }}</span></td>
+            <td>{{ r["nom_prenom"] }}</td>
+            <td>{{ r["magasin"] }}</td>
+            <td>{{ r["thematique"] }}</td>
+            <td>
+              <span class="badge
+                {% if status in ['nouveau','nouvelle'] %} bg-info
+                {% elif status in ['en cours','en traitement'] %} bg-primary
+                {% elif status in ['résolu','resolu','clôturé','cloturé'] %} bg-secondary
+                {% elif status in ['urgent','prioritaire'] %} bg-danger
+                {% else %} bg-light text-dark {% endif %}">
+                {{ r["statut"] }}
+              </span>
+            </td>
+            <td class="text-end" data-ordervalue="{{ r['mnt_commande']|default(0) }}">{{ r["mnt_commande"] }}&nbsp;MAD</td>
+            <td class="text-end" data-ordervalue="{{ r['total_code_promo']|default(0) }}">{{ r["total_code_promo"] }}&nbsp;MAD</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- DataTables v2 (standalone, no jQuery) -->
+<link rel="stylesheet" href="https://cdn.datatables.net/2.0.3/css/dataTables.bootstrap5.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
+<script src="https://cdn.datatables.net/2.0.3/js/dataTables.js"></script>
+<script src="https://cdn.datatables.net/2.0.3/js/dataTables.bootstrap5.js"></script>
+
+<script>
+document.addEventListener("DOMContentLoaded", () => {
+  const debounce = (fn, d=200) => { let t; return (...a)=>{ clearTimeout(t); t=setTimeout(()=>fn(...a), d);} };
+
+  // Init jQuery DataTable
+  const table = $('#ticketsTbl').DataTable({
+    pageLength: 25,
+    order: [[3,'desc']],
+    dom: 't<"row align-items-center mt-3"<"col-sm-6"i><"col-sm-6 text-end"p>>',
+    columnDefs: [
+      { orderable: false, targets: [0,1] },
+      {
+        targets: [3,9,10],
+        render: function (data, type, row, meta) {
+          if (type === 'sort') {
+            const td = table.cell(meta.row, meta.col).node();
+            return td?.getAttribute('data-ordervalue') || data || '';
+          }
+          return data;
+        }
+      }
+    ],
+    language: {
+      url: "https://cdn.datatables.net/plug-ins/1.13.6/i18n/fr-FR.json"
+    },
+    info: "Affichage de _START_ à _END_ sur _TOTAL_",
+    infoEmpty: "Aucune entrée",
+    paginate: { first:"Première", previous:"Précédente", next:"Suivante", last:"Dernière" }
+  });
+  
+
+  const COL = { ID:2, DATE:3, AGENT:4, CLIENT:5, MAG:6, THEM:7, STATUT:8, MNT:9, PROMO:10 };
+
+  // Live selects
+  const bindSelect = (id, colIdx) => {
+    const el = document.getElementById(id);
+    el.addEventListener('change', () => {
+      const val = el.value.trim();
+      table.column(colIdx).search(val ? `^${escapeRegex(val)}$` : '', true, false).draw();
+    });
+  };
+  bindSelect('flt_agent', COL.AGENT);
+  bindSelect('flt_statut', COL.STATUT);
+  bindSelect('flt_them', COL.THEM);
+  bindSelect('flt_mag', COL.MAG);
+
+  // Global search
+  const glb = document.getElementById('flt_q');
+  glb.addEventListener('input', debounce(e => table.search(e.target.value).draw(), 200));
+
+  // Date range filter (jQuery API)
+  const dminEl = document.getElementById('flt_dmin');
+  const dmaxEl = document.getElementById('flt_dmax');
+
+  $.fn.dataTable.ext.search.push(function(settings, data, dataIndex) {
+    // dataIndex is row index in current table
+    const td = table.cell(dataIndex, COL.DATE).node();
+    const iso = td ? (td.getAttribute('data-ordervalue') || '') : '';
+    if (!iso) return true;
+
+    const minStr = dminEl.value;
+    const maxStr = dmaxEl.value;
+    if (!minStr && !maxStr) return true;
+
+    const rowDate = new Date(iso.replace(' ', 'T'));
+    if (isNaN(rowDate)) return true;
+
+    if (minStr) {
+      const min = new Date(minStr + 'T00:00:00');
+      if (rowDate < min) return false;
+    }
+    if (maxStr) {
+      const max = new Date(maxStr + 'T23:59:59');
+      if (rowDate > max) return false;
+    }
+    return true;
+  });
+  ['change','input'].forEach(evt=>{
+    dminEl.addEventListener(evt, ()=> table.draw());
+    dmaxEl.addEventListener(evt, ()=> table.draw());
+  });
+
+  // Reset
+  document.getElementById('btn_reset').addEventListener('click', ()=>{
+    ['flt_dmin','flt_dmax','flt_agent','flt_statut','flt_them','flt_mag','flt_q'].forEach(id=>{
+      const el = document.getElementById(id);
+      if (el) el.value = '';
+    });
+    table.search('');
+    table.columns().every(function(){ this.search(''); });
+    table.draw();
+  });
+
+  // Summary (convert indexes to a plain array!)
+  $('#ticketsTbl').on('draw.dt', updateSummary);
+  updateSummary();
+
+  function updateSummary(){
+    const rowsIdx = table.rows({ search:'applied' }).indexes().toArray(); // <-- important
+    let count = rowsIdx.length, sumCmd = 0, sumPromo = 0;
+
+    rowsIdx.forEach(idx => {
+      const tdCmd = table.cell(idx, COL.MNT).node();
+      const tdPromo = table.cell(idx, COL.PROMO).node();
+      sumCmd  += parseFloat(tdCmd?.getAttribute('data-ordervalue')   || '0') || 0;
+      sumPromo+= parseFloat(tdPromo?.getAttribute('data-ordervalue') || '0') || 0;
+    });
+
+    document.getElementById('sumCount').textContent = String(count);
+    document.getElementById('sumCmd').textContent   = money(sumCmd);
+    document.getElementById('sumPromo').textContent = money(sumPromo);
+  }
+
+  // Export filtered (client-side)
+  document.getElementById('btn_export_filtered').addEventListener('click', ()=>{
+    const idxs = table.rows({ search:'applied' }).indexes().toArray();
+    if (!idxs.length) { alert('Aucune ligne à exporter.'); return; }
+
+    const header = ['ID','Date','Agent','Client','Magasin','Thématique','Statut','Montant','Promo'];
+    const lines = [header.join(',')];
+
+    idxs.forEach(idx=>{
+      const cells = [];
+      for (let c=COL.ID; c<=COL.PROMO; c++){
+        const td = table.cell(idx, c).node();
+        const text = td ? td.textContent.trim() : '';
+        cells.push(csvEscape(text));
+      }
+      lines.push(cells.join(','));
+    });
+
+    const blob = new Blob([lines.join('\n')], {type:'text/csv;charset=utf-8;'});
+    const url = URL.createObjectURL(blob);
+    const a = Object.assign(document.createElement('a'), { href: url, download: `tickets_${new Date().toISOString().slice(0,10)}.csv` });
+    document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+  });
+
+  // Utils
+  function money(v){
+    const n = Number(v||0);
+    return (isNaN(n) ? 0 : n).toLocaleString('fr-FR',{minimumFractionDigits:2,maximumFractionDigits:2}) + ' MAD';
+  }
+  function csvEscape(s){
+    const needs = /[",\n]/.test(s);
+    let out = s.replaceAll('"','""');
+    return needs ? `"${out}"` : out;
+  }
+  function escapeRegex(s){ return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
+});
+</script>
+
+
+{% endblock %}
