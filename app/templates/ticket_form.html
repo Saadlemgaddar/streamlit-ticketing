@@ -16,22 +16,21 @@
     </div>
     <div class="col-md-4">
       <label class="form-label">Date création</label>
-    <input class="form-control" value="{{ vals.get('date_creation', now.strftime('%Y-%m-%d %H:%M:%S')) }}" disabled>    </div>
+    <input class="form-control" value="{{ vals.get('date_creation', now.strftime('%Y-%m-%d %H:%M:%S')) }}" disabled></div>
     <div class="col-md-4">
-      <label class="form-label">Statut</label>
-      {# default when creating #}
       {% if mode == 'create' %}
+        <label class="form-label">Statut</label>
+        <input class="form-control" value="Ouvert" disabled>
         <input type="hidden" name="statut" value="Ouvert">
       {% else %}
         <label class="form-label">Statut</label>
+        {% set s = (vals.get('statut') or 'Ouvert') %}
         <select name="statut" id="statutSel" class="form-select">
-          {# normalize variants that may exist in DB #}
-          {% set s = (vals.get('statut') or 'Ouvert') %}
-          <option value="Ouvert"   {{ 'selected' if s|lower in ['ouvert','open'] else '' }}>Ouvert</option>
-          <option value="Clôturé"  {{ 'selected' if s|lower in ['clôturé','cloturé','clos','closed'] else '' }}>Clôturé</option>
+          <option value="Ouvert"  {{ 'selected' if s|lower in ['ouvert','open'] else '' }}>Ouvert</option>
+          <option value="Clôturé" {{ 'selected' if s|lower in ['clôturé','cloturé','clos','closed'] else '' }}>Clôturé</option>
         </select>
-      {% endif %}   
-     </div>
+      {% endif %}
+    </div>
   </div>
 
   <div class="row g-2 mt-1">

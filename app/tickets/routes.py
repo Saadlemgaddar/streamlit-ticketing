@@ -257,7 +257,14 @@ def create_ticket():
 
         if missing:
             flash("⚠️ Champs obligatoires manquants : " + ", ".join(missing), "danger")
-            return render_template("ticket_form.html", mode="create", vals=f, canaux=canaux)
+            return render_template(
+                "ticket_form.html",
+                mode="edit",
+                vals=f,
+                ticket_id=id,
+                canaux=canaux,
+                now=datetime.now()  # 👈 pass it here
+            )
 
         # next id (même algo)
         ids = list(coll("tickets").find({}, {"_id":0,"id":1}))
@@ -352,7 +359,14 @@ def edit_ticket(id):
         if missing:
             flash("⚠️ Champs obligatoires manquants : " + ", ".join(missing), "danger")
             # renvoyer les valeurs soumises pour pré-remplir
-            return render_template("ticket_form.html", mode="edit", vals=f, ticket_id=id, canaux=canaux)
+            return render_template(
+                "ticket_form.html",
+                mode="edit",
+                vals=f,
+                ticket_id=id,
+                canaux=canaux,
+                now=datetime.now()  # 👈 pass it here
+            )
 
         def ffloat(x):
             try: return float(x or 0)
