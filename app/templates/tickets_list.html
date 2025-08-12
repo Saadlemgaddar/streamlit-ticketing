@@ -84,42 +84,51 @@
   </div>
 </div>
 
-<!-- Summary Stats -->
+<!-- Résumé léger -->
 <div class="alert alert-light border d-flex flex-wrap justify-content-between align-items-center py-2 px-3 mb-3">
   <div class="d-flex align-items-center">
     <span class="badge bg-primary rounded-pill me-2" id="sumCount">0</span>
     <span class="small text-muted">tickets trouvés</span>
   </div>
-  <div class="d-flex gap-4">
-    <div class="text-center">
-      <div class="small text-muted">Total commandes</div>
-      <div class="fw-semibold" id="sumCmd">0,00&nbsp;MAD</div>
-    </div>
-    <div class="text-center">
-      <div class="small text-muted">Total promo</div>
-      <div class="fw-semibold" id="sumPromo">0,00&nbsp;MAD</div>
-    </div>
-  </div>
 </div>
 
-<!-- Tickets Table -->
+<!-- Table Container avec header et footer fixes -->
 <div class="card border-0 shadow-sm">
+  <!-- Header fixe avec contrôles -->
+  <div class="card-header bg-white border-bottom sticky-top" style="z-index: 10;">
+    <div class="d-flex justify-content-between align-items-center">
+      <div class="d-flex align-items-center gap-3">
+        <div class="small text-muted">Affichage</div>
+        <div class="btn-group btn-group-sm" role="group">
+          <button id="btn_density_compact" type="button" class="btn btn-outline-secondary active">Compact</button>
+          <button id="btn_density_cozy" type="button" class="btn btn-outline-secondary">Confort</button>
+        </div>
+      </div>
+      <div class="d-flex align-items-center gap-2">
+        <span class="small text-muted">Afficher</span>
+        <div id="dtLengthHolder"></div>
+        <span class="small text-muted">entrées</span>
+      </div>
+    </div>
+  </div>
+
   <div class="card-body p-0">
-    <div class="table-responsive">
-      <table id="ticketsTbl" class="table table-hover align-middle mb-0" style="width:100%">
-        <thead class="table-light">
+    <!-- Zone de scroll limitée au tableau -->
+    <div class="table-responsive" id="tblWrap" style="max-height:60vh;overflow-y:auto;">
+      <table id="ticketsTbl" class="table table-hover table-striped align-middle mb-0 dt-compact w-100">
+        <thead class="table-light sticky-top">
           <tr>
             <th width="40"></th>
             <th width="40"></th>
             <th>ID</th>
             <th>Date</th>
             <th>Agent</th>
-            <th>Client</th>
-            <th>Magasin</th>
-            <th>Thématique</th>
+            <th class="d-none d-sm-table-cell">Client</th>
+            <th class="d-none d-lg-table-cell">ID client</th>
+            <th class="d-none d-lg-table-cell">N° commande</th>
+            <th class="d-none d-md-table-cell">Magasin</th>
+            <th class="d-none d-lg-table-cell">Thématique</th>
             <th>Statut</th>
-            <th class="text-end">Commande</th>
-            <th class="text-end">Promo</th>
           </tr>
         </thead>
         <tbody>
@@ -141,11 +150,18 @@
               </form>
             </td>
             <td><span class="font-monospace">{{ r["id"] }}</span></td>
-            <td data-ordervalue="{{ r['date_creation']|default('') }}"><span class="small">{{ r["date_creation"] }}</span></td>
+
+            <!-- Date: show pretty, keep ISO in data-ordervalue for filters/sort -->
+            <td data-ordervalue="{{ r.get('date_iso','') or '' }}">
+              <span class="small">{{ r["date_creation"] }}</span>
+            </td>
+
             <td><span class="badge bg-light text-dark">{{ r["agent"] }}</span></td>
-            <td>{{ r["nom_prenom"] }}</td>
-            <td>{{ r["magasin"] }}</td>
-            <td>{{ r["thematique"] }}</td>
+            <td class="d-none d-sm-table-cell text-truncate" style="max-width: 220px;">{{ r["nom_prenom"] }}</td>
+            <td class="d-none d-lg-table-cell">{{ r["id_client"] }}</td>
+            <td class="d-none d-lg-table-cell">{{ r["num_cmd"] }}</td>
+            <td class="d-none d-md-table-cell">{{ r["magasin"] }}</td>
+            <td class="d-none d-lg-table-cell">{{ r["thematique"] }}</td>
             <td>
               <span class="badge
                 {% if status in ['nouveau','nouvelle'] %} bg-info
@@ -156,37 +172,109 @@
                 {{ r["statut"] }}
               </span>
             </td>
-            <td class="text-end" data-ordervalue="{{ r['mnt_commande']|default(0) }}">{{ r["mnt_commande"] }}&nbsp;MAD</td>
-            <td class="text-end" data-ordervalue="{{ r['total_code_promo']|default(0) }}">{{ r["total_code_promo"] }}&nbsp;MAD</td>
           </tr>
           {% endfor %}
         </tbody>
       </table>
     </div>
   </div>
+
+  <!-- Footer fixe avec info et pagination -->
+  <div class="card-footer bg-white border-top">
+    <div class="d-flex justify-content-between align-items-center">
+      <div class="small text-muted" id="dtInfoHolder"></div>
+      <div class="d-flex align-items-center gap-2" id="dtPagingHolder"></div>
+    </div>
+  </div>
 </div>
 
-<!-- DataTables v2 (standalone, no jQuery) -->
+<!-- DataTables assets -->
 <link rel="stylesheet" href="https://cdn.datatables.net/2.0.3/css/dataTables.bootstrap5.css">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
 <script src="https://cdn.datatables.net/2.0.3/js/dataTables.js"></script>
 <script src="https://cdn.datatables.net/2.0.3/js/dataTables.bootstrap5.js"></script>
 
+<style>
+  /* Density */
+  .dt-compact tbody tr > * { padding-top:.35rem; padding-bottom:.35rem; }
+  .dt-cozy    tbody tr > * { padding-top:.65rem; padding-bottom:.65rem; }
+
+  /* Sticky header dans la zone de scroll */
+  #tblWrap thead.sticky-top th {
+    top: 0;
+    z-index: 5;
+    background: var(--bs-light) !important;
+    border-bottom: 2px solid var(--bs-border-color);
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  }
+
+  /* Header de card fixe */
+  .card-header.sticky-top {
+    top: 0;
+    background: white !important;
+    border-bottom: 1px solid var(--bs-border-color);
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  }
+
+  /* Hover */
+  #ticketsTbl tbody tr:hover { background: rgba(13,110,253,.06) !important; }
+
+  /* Pagination buttons */
+  .dataTables_wrapper .dataTables_paginate .paginate_button { 
+    padding: .25rem .5rem !important; 
+    margin: 0 2px;
+  }
+  .dataTables_wrapper .dataTables_info { padding-top: .35rem; }
+
+  /* Scrollbar personnalisée */
+  #tblWrap::-webkit-scrollbar {
+    width: 8px;
+  }
+  #tblWrap::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 4px;
+  }
+  #tblWrap::-webkit-scrollbar-thumb {
+    background: #c1c1c1;
+    border-radius: 4px;
+  }
+  #tblWrap::-webkit-scrollbar-thumb:hover {
+    background: #a8a8a8;
+  }
+
+  /* Make sure only the table area scrolls */
+  #tblWrap { 
+    overscroll-behavior: contain;
+  }
+
+  /* Hide default DataTables elements */
+  .dataTables_wrapper .dataTables_length,
+  .dataTables_wrapper .dataTables_info,
+  .dataTables_wrapper .dataTables_paginate {
+    display: none;
+  }
+</style>
+
 <script>
 document.addEventListener("DOMContentLoaded", () => {
   const debounce = (fn, d=200) => { let t; return (...a)=>{ clearTimeout(t); t=setTimeout(()=>fn(...a), d);} };
 
-  // Init jQuery DataTable
+  // 1) Initialize DataTable avec DOM minimal
   const table = $('#ticketsTbl').DataTable({
+    dom: "t", // Only table
+    pagingType: 'full_numbers',
     pageLength: 25,
+    lengthMenu: [[10,25,50,100,-1], ['10','25','50','100','Tous']],
+    stateSave: true,
+    deferRender: true,
+    autoWidth: false,
     order: [[3,'desc']],
-    dom: 't<"row align-items-center mt-3"<"col-sm-6"i><"col-sm-6 text-end"p>>',
     columnDefs: [
       { orderable: false, targets: [0,1] },
       {
-        targets: [3,9,10],
+        targets: [3], // Date column
         render: function (data, type, row, meta) {
-          if (type === 'sort') {
+          if (type === 'sort' || type === 'type') {
             const td = table.cell(meta.row, meta.col).node();
             return td?.getAttribute('data-ordervalue') || data || '';
           }
@@ -195,17 +283,20 @@ document.addEventListener("DOMContentLoaded", () => {
       }
     ],
     language: {
-      url: "https://cdn.datatables.net/plug-ins/1.13.6/i18n/fr-FR.json"
-    },
-    info: "Affichage de _START_ à _END_ sur _TOTAL_",
-    infoEmpty: "Aucune entrée",
-    paginate: { first:"Première", previous:"Précédente", next:"Suivante", last:"Dernière" }
+      url: "https://cdn.datatables.net/plug-ins/1.13.6/i18n/fr-FR.json",
+      info: "Affichage de _START_ à _END_ sur _TOTAL_",
+      infoEmpty: "Aucune entrée",
+      infoFiltered: "(filtré sur _MAX_ entrées au total)"
+    }
   });
-  
 
-  const COL = { ID:2, DATE:3, AGENT:4, CLIENT:5, MAG:6, THEM:7, STATUT:8, MNT:9, PROMO:10 };
+  // 2) Créer nos propres contrôles
+  createCustomControls();
 
-  // Live selects
+  // Column indices 
+  const COL = { ID:2, DATE:3, AGENT:4, CLIENT:5, IDCLIENT:6, NUMCMD:7, MAG:8, THEM:9, STATUT:10 };
+
+  // External selects
   const bindSelect = (id, colIdx) => {
     const el = document.getElementById(id);
     el.addEventListener('change', () => {
@@ -222,23 +313,39 @@ document.addEventListener("DOMContentLoaded", () => {
   const glb = document.getElementById('flt_q');
   glb.addEventListener('input', debounce(e => table.search(e.target.value).draw(), 200));
 
-  // Date range filter (jQuery API)
+  // Date range filter - FIXED VERSION
   const dminEl = document.getElementById('flt_dmin');
   const dmaxEl = document.getElementById('flt_dmax');
-
+  
   $.fn.dataTable.ext.search.push(function(settings, data, dataIndex) {
-    // dataIndex is row index in current table
-    const td = table.cell(dataIndex, COL.DATE).node();
-    const iso = td ? (td.getAttribute('data-ordervalue') || '') : '';
-    if (!iso) return true;
-
+    if (settings.nTable.id !== 'ticketsTbl') return true;
+    
     const minStr = dminEl.value;
     const maxStr = dmaxEl.value;
     if (!minStr && !maxStr) return true;
 
-    const rowDate = new Date(iso.replace(' ', 'T'));
-    if (isNaN(rowDate)) return true;
+    // Récupérer la date ISO depuis l'attribut data-ordervalue
+    const td = table.cell(dataIndex, COL.DATE).node();
+    let iso = td ? (td.getAttribute('data-ordervalue') || '').trim() : '';
+    
+    // Fallback: essayer de parser le texte visible
+    if (!iso) {
+      const txt = td ? td.textContent.trim() : '';
+      iso = frToIso(txt);
+    }
+    
+    if (!iso) return true;
 
+    // Nettoyer l'ISO et créer la date
+    let cleanIso = iso;
+    if (!iso.includes('T')) {
+      cleanIso = iso.replace(' ', 'T');
+    }
+    
+    const rowDate = new Date(cleanIso);
+    if (isNaN(rowDate.getTime())) return true;
+
+    // Vérifier les limites
     if (minStr) {
       const min = new Date(minStr + 'T00:00:00');
       if (rowDate < min) return false;
@@ -249,14 +356,22 @@ document.addEventListener("DOMContentLoaded", () => {
     }
     return true;
   });
-  ['change','input'].forEach(evt=>{
-    dminEl.addEventListener(evt, ()=> table.draw());
-    dmaxEl.addEventListener(evt, ()=> table.draw());
+
+  // Event listeners pour les filtres de date
+  ['change','input'].forEach(evt => {
+    dminEl.addEventListener(evt, () => {
+      console.log('Date filter changed:', dminEl.value, dmaxEl.value);
+      table.draw();
+    });
+    dmaxEl.addEventListener(evt, () => {
+      console.log('Date filter changed:', dminEl.value, dmaxEl.value);
+      table.draw();
+    });
   });
 
-  // Reset
-  document.getElementById('btn_reset').addEventListener('click', ()=>{
-    ['flt_dmin','flt_dmax','flt_agent','flt_statut','flt_them','flt_mag','flt_q'].forEach(id=>{
+  // Reset filters
+  document.getElementById('btn_reset').addEventListener('click', () => {
+    ['flt_dmin','flt_dmax','flt_agent','flt_statut','flt_them','flt_mag','flt_q'].forEach(id => {
       const el = document.getElementById(id);
       if (el) el.value = '';
     });
@@ -265,63 +380,130 @@ document.addEventListener("DOMContentLoaded", () => {
     table.draw();
   });
 
-  // Summary (convert indexes to a plain array!)
-  $('#ticketsTbl').on('draw.dt', updateSummary);
-  updateSummary();
-
-  function updateSummary(){
-    const rowsIdx = table.rows({ search:'applied' }).indexes().toArray(); // <-- important
-    let count = rowsIdx.length, sumCmd = 0, sumPromo = 0;
-
-    rowsIdx.forEach(idx => {
-      const tdCmd = table.cell(idx, COL.MNT).node();
-      const tdPromo = table.cell(idx, COL.PROMO).node();
-      sumCmd  += parseFloat(tdCmd?.getAttribute('data-ordervalue')   || '0') || 0;
-      sumPromo+= parseFloat(tdPromo?.getAttribute('data-ordervalue') || '0') || 0;
-    });
-
+  // Update count on draw
+  table.on('draw.dt', () => {
+    const count = table.rows({ search:'applied' }).indexes().length;
     document.getElementById('sumCount').textContent = String(count);
-    document.getElementById('sumCmd').textContent   = money(sumCmd);
-    document.getElementById('sumPromo').textContent = money(sumPromo);
-  }
+    updateCustomInfo();
+  }).trigger('draw');
 
-  // Export filtered (client-side)
-  document.getElementById('btn_export_filtered').addEventListener('click', ()=>{
+  // Export filtered
+  document.getElementById('btn_export_filtered').addEventListener('click', () => {
     const idxs = table.rows({ search:'applied' }).indexes().toArray();
     if (!idxs.length) { alert('Aucune ligne à exporter.'); return; }
-
-    const header = ['ID','Date','Agent','Client','Magasin','Thématique','Statut','Montant','Promo'];
+    const header = ['ID','Date','Agent','Client','ID client','N° commande','Magasin','Thématique','Statut'];
     const lines = [header.join(',')];
-
-    idxs.forEach(idx=>{
-      const cells = [];
-      for (let c=COL.ID; c<=COL.PROMO; c++){
-        const td = table.cell(idx, c).node();
-        const text = td ? td.textContent.trim() : '';
-        cells.push(csvEscape(text));
-      }
+    idxs.forEach(idx => {
+      const cells = [COL.ID, COL.DATE, COL.AGENT, COL.CLIENT, COL.IDCLIENT, COL.NUMCMD, COL.MAG, COL.THEM, COL.STATUT]
+        .map(c => {
+          const td = table.cell(idx, c).node();
+          const text = td ? td.textContent.trim() : '';
+          return csvEscape(text);
+        });
       lines.push(cells.join(','));
     });
-
     const blob = new Blob([lines.join('\n')], {type:'text/csv;charset=utf-8;'});
     const url = URL.createObjectURL(blob);
     const a = Object.assign(document.createElement('a'), { href: url, download: `tickets_${new Date().toISOString().slice(0,10)}.csv` });
     document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
   });
 
-  // Utils
-  function money(v){
-    const n = Number(v||0);
-    return (isNaN(n) ? 0 : n).toLocaleString('fr-FR',{minimumFractionDigits:2,maximumFractionDigits:2}) + ' MAD';
+  // Density toggle
+  const tbl = document.getElementById('ticketsTbl');
+  document.getElementById('btn_density_compact').addEventListener('click', (e) => {
+    tbl.classList.add('dt-compact'); 
+    tbl.classList.remove('dt-cozy');
+    e.currentTarget.classList.add('active');
+    document.getElementById('btn_density_cozy').classList.remove('active');
+  });
+  document.getElementById('btn_density_cozy').addEventListener('click', (e) => {
+    tbl.classList.add('dt-cozy'); 
+    tbl.classList.remove('dt-compact');
+    e.currentTarget.classList.add('active');
+    document.getElementById('btn_density_compact').classList.remove('active');
+  });
+
+  // Custom controls functions
+  function createCustomControls() {
+    // Length selector
+    const lengthSelect = document.createElement('select');
+    lengthSelect.className = 'form-select form-select-sm';
+    lengthSelect.style.width = 'auto';
+    lengthSelect.innerHTML = `
+      <option value="10">10</option>
+      <option value="25" selected>25</option>
+      <option value="50">50</option>
+      <option value="100">100</option>
+      <option value="-1">Tous</option>
+    `;
+    lengthSelect.addEventListener('change', e => {
+      table.page.len(parseInt(e.target.value, 10)).draw();
+    });
+    document.getElementById('dtLengthHolder').appendChild(lengthSelect);
+
+    // Custom pagination
+    createPagination();
   }
+
+  function createPagination() {
+    const paginationContainer = document.createElement('nav');
+    paginationContainer.innerHTML = `
+      <ul class="pagination pagination-sm mb-0" id="customPagination">
+        <li class="page-item" id="page-first">
+          <button class="page-link" onclick="goToPage('first')">Première</button>
+        </li>
+        <li class="page-item" id="page-prev">
+          <button class="page-link" onclick="goToPage('prev')">Précédente</button>
+        </li>
+        <li class="page-item" id="page-next">
+          <button class="page-link" onclick="goToPage('next')">Suivante</button>
+        </li>
+        <li class="page-item" id="page-last">
+          <button class="page-link" onclick="goToPage('last')">Dernière</button>
+        </li>
+      </ul>
+    `;
+    document.getElementById('dtPagingHolder').appendChild(paginationContainer);
+  }
+
+  function updateCustomInfo() {
+    const info = table.page.info();
+    const infoText = info.recordsDisplay === 0 ? "Aucune entrée" :
+      `Affichage de ${info.start + 1} à ${info.end} sur ${info.recordsDisplay} ${info.recordsTotal !== info.recordsDisplay ? `(filtré sur ${info.recordsTotal} entrées au total)` : ''}`;
+    document.getElementById('dtInfoHolder').textContent = infoText;
+    
+    // Update pagination buttons
+    document.getElementById('page-first').classList.toggle('disabled', info.page === 0);
+    document.getElementById('page-prev').classList.toggle('disabled', info.page === 0);
+    document.getElementById('page-next').classList.toggle('disabled', info.page >= info.pages - 1);
+    document.getElementById('page-last').classList.toggle('disabled', info.page >= info.pages - 1);
+  }
+
+  // Global functions for pagination
+  window.goToPage = function(direction) {
+    switch(direction) {
+      case 'first': table.page('first'); break;
+      case 'prev': table.page('previous'); break;
+      case 'next': table.page('next'); break;
+      case 'last': table.page('last'); break;
+    }
+    table.draw('page');
+  };
+
+  // Utils
   function csvEscape(s){
     const needs = /[",\n]/.test(s);
     let out = s.replaceAll('"','""');
     return needs ? `"${out}"` : out;
   }
   function escapeRegex(s){ return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
+  function frToIso(txt){
+    const m = txt.match(/^(\d{2})\/(\d{2})\/(\d{4})\s+(\d{2}):(\d{2})(?::(\d{2}))?$/);
+    if (!m) return "";
+    const [_, d, mo, y, h, mi, s] = m;
+    return `${y}-${mo}-${d}T${h}:${mi}:${s||"00"}`;
+  }
 });
 </script>
-
 
 {% endblock %}

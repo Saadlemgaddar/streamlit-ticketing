@@ -952,3 +952,53 @@ textarea.form-control {
   text-align:center; color:#94a3b8; padding:2rem 1rem;
   border:1px dashed #e5e7eb; border-radius:12px; background:#fff;
 }
+
+#tblWrap { max-height:70vh; overflow:auto; }
+#tblWrap thead.sticky-top th { top:0; z-index:5; background: var(--bs-light); }
+
+/* Let DataTables manage the scroll, not our wrapper */
+#tblWrap { overflow: visible; }
+
+/* Height of the scrolling data area */
+.dataTables_wrapper .dataTables_scrollBody {
+  max-height: 62vh !important;   /* change if you want */
+  border-top: 1px solid var(--bs-border-color);
+  border-bottom: 1px solid var(--bs-border-color);
+}
+
+/* Make header/table widths line up */
+.dataTables_wrapper .dataTables_scrollHead table,
+.dataTables_wrapper .dataTables_scrollBody table {
+  width: 100% !important;
+}
+
+/* Row hover */
+#ticketsTbl tbody tr:hover { background: rgba(13,110,253,.06); }
+
+/* Compact vs cozy paddings (kept) */
+.dt-compact tbody tr > * { padding-top:.35rem; padding-bottom:.35rem; }
+.dt-cozy    tbody tr > * { padding-top:.65rem; padding-bottom:.65rem; }
+
+/* Tighter pagination buttons */
+.dataTables_wrapper .dataTables_paginate .paginate_button { padding:.25rem .5rem!important; }
+
+  /* Density */
+  .dt-compact tbody tr > * { padding-top:.35rem; padding-bottom:.35rem; }
+  .dt-cozy    tbody tr > * { padding-top:.65rem; padding-bottom:.65rem; }
+
+  /* Only the table area scrolls */
+  #tblWrap { max-height:70vh; overflow:auto; overscroll-behavior: contain; }
+
+  /* Sticky header inside the scroll container */
+  #tblWrap thead th {
+    position: sticky; top: 0; z-index: 5;
+    background: var(--bs-light);
+    border-bottom: 1px solid var(--bs-border-color);
+  }
+
+  /* Hover */
+  #ticketsTbl tbody tr:hover { background: rgba(13,110,253,.06); }
+
+  /* Pagination/info compacter */
+  .dataTables_wrapper .dataTables_paginate .paginate_button { padding: .25rem .5rem !important; }
+  .dataTables_wrapper .dataTables_info { padding-top: .35rem; }

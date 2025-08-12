@@ -1,9 +1,9 @@
+# app/tickets/routes.py
 from flask import Blueprint, current_app, render_template, request, redirect, url_for, flash, jsonify, send_file, g
 from ..extensions import mongo
-from datetime import datetime, date
-import io, pandas as pd
-from bson.json_util import dumps
 from datetime import datetime
+import io
+import pandas as pd
 from pymongo import ReturnDocument
 
 tickets_bp = Blueprint("tickets", __name__, template_folder="../templates")
@@ -30,33 +30,45 @@ def require_user():
 def coll(name: str):
     return _db()[name]
 
-
-SEQ_INIT_DONE = False
+def _numeric_id(v):
+    """Convert various forms ('547', 547, '547.0') to int 547, else None."""
+    try:
+        s = str(v).strip()
+        n = int(float(s))
+        return n
+    except Exception:
+        return None
 
 def ensure_ticket_sequence():
-    """Crée/initialise le compteur d'ID une seule fois (valeur = max(id existants))."""
-    global SEQ_INIT_DONE
-    if SEQ_INIT_DONE:
-        return
+    """
+    Ensure:
+      - unique index exists on tickets.id
+      - counters.tickets exists
+      - counters.tickets.seq >= max numeric id in tickets
+    Safe to call often.
+    """
+    # unique index (idempotent)
+    try:
+        coll("tickets").create_index("id", unique=True)
+    except Exception:
+        pass
+
+    # compute max id present
+    max_id = 0
+    for r in coll("tickets").find({}, {"_id": 0, "id": 1}):
+        n = _numeric_id(r.get("id"))
+        if n is not None:
+            max_id = max(max_id, n)
 
     c = coll("counters")
     cur = c.find_one({"_id": "tickets"})
     if cur is None:
-        # On démarre à max(id) s'il existe, sinon 0
-        max_id = 0
-        for r in coll("tickets").find({}, {"_id": 0, "id": 1}):
-            s = str(r.get("id", "")).strip()
-            if s.isdigit():
-                max_id = max(max_id, int(s))
         c.insert_one({"_id": "tickets", "seq": max_id})
-
-        # index d’unicité sur id (évite les doublons)
-        coll("tickets").create_index("id", unique=True)
-
-    SEQ_INIT_DONE = True
+    else:
+        if int(cur.get("seq", 0)) < max_id:
+            c.update_one({"_id": "tickets"}, {"$set": {"seq": max_id}})
 
 def next_ticket_id() -> str:
-    """Renvoie le prochain ID séquentiel sous forme de string ('1','2',...)."""
     ensure_ticket_sequence()
     res = coll("counters").find_one_and_update(
         {"_id": "tickets"},
@@ -66,27 +78,38 @@ def next_ticket_id() -> str:
     )
     return str(res["seq"])
 
-@tickets_bp.get("/api/canaux")
-def api_canaux():
-    rows = list(coll("canaux").find({}, {"_id":0, "canal":1}))
-    canaux = sorted({(r.get("canal") or "").strip() for r in rows if (r.get("canal") or "").strip()})
-    return jsonify(canaux)
+def _find_ticket_by_id(id_value: str):
+    ors = [{"id": str(id_value)}]
+    nid = _numeric_id(id_value)
+    if nid is not None:
+        ors.append({"id": nid})
+    return coll("tickets").find_one({"$or": ors}, {"_id": 0})
 
-@tickets_bp.get("/api/magasins")
-def api_magasins():
-    # retourne une liste de libellés + la ligne entière pour auto-remplir
-    rows = list(coll("magasins").find({}, {"_id":0}))
-    # essaye de deviner la colonne libellé, comme get_magasin_column_name()
-    possible = ['Magasin', 'magasin', 'nom_magasin', 'nom', 'store_name']
-    label = next((p for p in possible if rows and p in rows[0]), None)
-    data = []
-    for r in rows:
-        lib = (r.get(label) or "").strip() if label else ""
-        data.append({"label": lib, "row": r})
-    # tri par label non vide
-    data = [x for x in data if x["label"]]
-    data.sort(key=lambda x: x["label"])
-    return jsonify(data)
+# put this near the top of routes.py
+import pandas as pd
+import numpy as np
+
+NULLY = {"", "None", "none", "nan", "NaN", "_", "-"}
+
+def parse_date_creation(series):
+    # Ensure the series exists and is string-like
+    s = pd.Series(series, dtype="string").str.strip()
+    s = s.where(~s.isin(NULLY), pd.NA)
+
+    # Pass 1: your app's ISO strings (no dayfirst here!)
+    dc = pd.to_datetime(s, format="%Y-%m-%d %H:%M:%S", errors="coerce")
+
+    # Pass 2: fallback for FR strings like 'dd/mm/YYYY HH:MM' (use dayfirst)
+    m = dc.isna()
+    if m.any():
+        dc.loc[m] = pd.to_datetime(s[m], format="%d/%m/%Y %H:%M", errors="coerce", dayfirst=True)
+
+    # Last chance: free parse for any leftovers
+    m = dc.isna()
+    if m.any():
+        dc.loc[m] = pd.to_datetime(s[m], errors="coerce", dayfirst=True)
+
+    return dc
 
 def _slug_col(name: str) -> str:
     import unicodedata, re
@@ -109,37 +132,51 @@ CANON_MAP = {
 
 def _normalize_thematiques_columns(rows):
     import pandas as pd, unicodedata
-
     if not rows:
         return []
-
     df = pd.DataFrame(rows).fillna("")
-    # Map headings to canonical names (you already had this)
+    # rename headers to canonical
     rename_dict = {}
     for c in df.columns:
         slug = _slug_col(c)
         if slug in CANON_MAP:
             rename_dict[c] = CANON_MAP[slug]
     df = df.rename(columns=rename_dict)
-
-    # Ensure all needed columns exist
+    # ensure columns exist
     for col in ["Thematique", "Famille", "Sous Famille", "Categorie", "Sous Categorie", "Action"]:
         if col not in df.columns:
             df[col] = ""
-
-    # Normalize VALUES too (strip + unify unicode)
+    # normalize values
     def _canon_val(x: str) -> str:
         s = unicodedata.normalize("NFKC", str(x))
         return s.strip()
-
     for col in ["Thematique", "Famille", "Sous Famille", "Categorie", "Sous Categorie", "Action"]:
         df[col] = df[col].astype(str).map(_canon_val)
-
     return df.astype(str).to_dict(orient="records")
+
+# ---------- APIs used by forms ----------
+
+@tickets_bp.get("/api/canaux")
+def api_canaux():
+    rows = list(coll("canaux").find({}, {"_id":0, "canal":1}))
+    canaux = sorted({(r.get("canal") or "").strip() for r in rows if (r.get("canal") or "").strip()})
+    return jsonify(canaux)
+
+@tickets_bp.get("/api/magasins")
+def api_magasins():
+    rows = list(coll("magasins").find({}, {"_id":0}))
+    possible = ['Magasin', 'magasin', 'nom_magasin', 'nom', 'store_name']
+    label = next((p for p in possible if rows and p in rows[0]), None)
+    data = []
+    for r in rows:
+        lib = (r.get(label) or "").strip() if label else ""
+        data.append({"label": lib, "row": r})
+    data = [x for x in data if x["label"]]
+    data.sort(key=lambda x: x["label"])
+    return jsonify(data)
 
 @tickets_bp.get("/api/thematiques")
 def api_thematiques_root():
-    # renvoie toutes les thématiques distinctes
     rows = list(coll("thematiques").find({}, {"_id":0}))
     norm = _normalize_thematiques_columns(rows)
     thems = sorted({r["Thematique"].strip() for r in norm if r["Thematique"].strip()})
@@ -148,19 +185,16 @@ def api_thematiques_root():
 @tickets_bp.get("/api/thematiques/children")
 def api_thematiques_children():
     import unicodedata
-
     def _cv(s: str) -> str:
-        # canon value: strip + normalize + casefold for insensitive compares
         s = unicodedata.normalize("NFKC", str(s or ""))
         return s.strip().casefold()
-
     def _eq(a, b) -> bool:
         return _cv(a) == _cv(b)
 
-    q_t = request.args.get("thematique", "") or ""
-    q_f = request.args.get("famille", "") or ""
+    q_t  = request.args.get("thematique", "") or ""
+    q_f  = request.args.get("famille", "") or ""
     q_sf = request.args.get("sous_famille", "") or ""
-    q_c = request.args.get("categorie", "") or ""
+    q_c  = request.args.get("categorie", "") or ""
     q_sc = request.args.get("sous_categorie", "") or ""
 
     rows = list(coll("thematiques").find({}, {"_id": 0}))
@@ -172,38 +206,28 @@ def api_thematiques_children():
     if q_t and not q_f:
         familles = uniq([r["Famille"] for r in norm if _eq(r["Thematique"], q_t)])
         return jsonify({"level": "famille", "values": familles})
-
     if q_t and q_f and not q_sf:
-        sfs = uniq([r["Sous Famille"] for r in norm
-                    if _eq(r["Thematique"], q_t) and _eq(r["Famille"], q_f)])
+        sfs = uniq([r["Sous Famille"] for r in norm if _eq(r["Thematique"], q_t) and _eq(r["Famille"], q_f)])
         return jsonify({"level": "sous_famille", "values": sfs})
-
     if q_t and q_f and q_sf and not q_c:
-        cats = uniq([r["Categorie"] for r in norm
-                     if _eq(r["Thematique"], q_t) and _eq(r["Famille"], q_f) and _eq(r["Sous Famille"], q_sf)])
+        cats = uniq([r["Categorie"] for r in norm if _eq(r["Thematique"], q_t) and _eq(r["Famille"], q_f) and _eq(r["Sous Famille"], q_sf)])
         return jsonify({"level": "categorie", "values": cats})
-
     if q_t and q_f and q_sf and q_c and not q_sc:
-        scats = uniq([r["Sous Categorie"] for r in norm
-                      if _eq(r["Thematique"], q_t) and _eq(r["Famille"], q_f)
-                      and _eq(r["Sous Famille"], q_sf) and _eq(r["Categorie"], q_c)])
+        scats = uniq([r["Sous Categorie"] for r in norm if _eq(r["Thematique"], q_t) and _eq(r["Famille"], q_f) and _eq(r["Sous Famille"], q_sf) and _eq(r["Categorie"], q_c)])
         return jsonify({"level": "sous_categorie", "values": scats})
-
     if q_t and q_f and q_sf and q_c and q_sc:
-        acts = uniq([r["Action"] for r in norm
-                     if _eq(r["Thematique"], q_t) and _eq(r["Famille"], q_f)
-                     and _eq(r["Sous Famille"], q_sf) and _eq(r["Categorie"], q_c)
-                     and _eq(r["Sous Categorie"], q_sc)])
+        acts = uniq([r["Action"] for r in norm if _eq(r["Thematique"], q_t) and _eq(r["Famille"], q_f) and _eq(r["Sous Famille"], q_sf) and _eq(r["Categorie"], q_c) and _eq(r["Sous Categorie"], q_sc)])
         return jsonify({"level": "action", "values": acts})
-
     return jsonify({"level": "none", "values": []})
+
+# ---------- Views ----------
 
 @tickets_bp.route("/list")
 def list_tickets():
     ru = require_user()
     if ru: return ru
+
     q = {}
-    # Filtres
     agent = request.args.get("agent")
     statut = request.args.get("statut")
     thematique = request.args.get("thematique")
@@ -222,9 +246,10 @@ def list_tickets():
     if df.empty:
         return render_template("tickets_list.html", rows=[], agents=[], statuts=[], thems=[], magasins=[], search=search)
 
-    # Date filter
+    # Date filter (parse with dayfirst=True; iso works too)
     if dmin or dmax:
-        df["date_creation"] = pd.to_datetime(df["date_creation"], errors="coerce")
+        dc = parse_date_creation(df.get("date_creation"))
+        df["date_creation"] = dc
         if dmin:
             df = df[df["date_creation"].dt.date >= pd.to_datetime(dmin).date()]
         if dmax:
@@ -233,6 +258,9 @@ def list_tickets():
     # Global search
     if search:
         t = search
+        for col in ["nom_prenom","num_cmd","id_client","magasin","commentaires","id"]:
+            if col not in df.columns:
+                df[col] = ""
         mask = (
             df["nom_prenom"].astype(str).str.lower().str.contains(t, na=False) |
             df["num_cmd"].astype(str).str.lower().str.contains(t, na=False)  |
@@ -244,21 +272,27 @@ def list_tickets():
         df = df[mask]
 
     # Options filtres (pour select dans UI)
+    for col in ["agent","statut","thematique","magasin"]:
+        if col not in df.columns: df[col] = ""
     agents   = sorted([x for x in df["agent"].dropna().unique().tolist() if str(x).strip()])
     statuts  = sorted([x for x in df["statut"].dropna().unique().tolist() if str(x).strip()])
     thems    = sorted([x for x in df["thematique"].dropna().unique().tolist() if str(x).strip()])
     magasins = sorted([x for x in df["magasin"].dropna().unique().tolist() if str(x).strip()])
 
-    df = df.sort_values(by="date_creation", ascending=False, na_position="last")
-    display_cols = ["id","date_creation","agent","nom_prenom","magasin","thematique","statut","mnt_commande","total_code_promo"]
+    # Sort by creation date desc if present
+    dc = parse_date_creation(df.get("date_creation"))
+    df["__dc"] = dc
+    df = df.sort_values(by="__dc", ascending=False, na_position="last").drop(columns=["__dc"])
+
+    display_cols = ["id","date_creation","agent","nom_prenom","magasin","thematique","statut","num_cmd","id_client"]
     for c in display_cols:
         if c not in df.columns: df[c] = ""
 
-    # Formatting
-    if "date_creation" in df.columns:
-        df["date_creation"] = pd.to_datetime(df["date_creation"], errors="coerce").dt.strftime('%d/%m/%Y %H:%M')
+    # Format dates for display (no warning, blanks if NaT)
+    dc = parse_date_creation(df.get("date_creation"))
+    df["date_creation"] = dc.dt.strftime("%d/%m/%Y %H:%M").fillna("")
 
-    # Make money columns robust, then format
+    # Money columns robust
     import numpy as np
     MONEY_COLS = ["prix_pdts","mnt_commande","mnt_rembour","mnt_gestco","total_code_promo"]
     for c in MONEY_COLS:
@@ -273,7 +307,7 @@ def list_tickets():
             errors="coerce"
         ).fillna(0.0)
 
-    # Only for display
+    # Only for display in list
     for m in ["mnt_commande","total_code_promo"]:
         df[m] = df[m].map(lambda v: f"{v:.2f} MAD")
 
@@ -295,29 +329,20 @@ def create_ticket():
     if request.method == "POST":
         f = request.form
 
-        # validations identiques
+        # validations
         missing = []
         if not f.get("nom_prenom","").strip(): missing.append("Nom et Prénom client")
         if not f.get("canal",""): missing.append("Canal")
         if not f.get("statut",""): missing.append("Statut")
         if f.get("traitement") == "Exceptionnel" and not f.get("si_exceptionnel","").strip():
             missing.append("Motif pour traitement exceptionnel")
-        cascade_required = ["thematique","famille","sous_famille","categorie","sous_categorie","action"]
-        for k in cascade_required:
+        for k in ["thematique","famille","sous_famille","categorie","sous_categorie","action"]:
             if not f.get(k,"").strip(): missing.append(k.replace("_"," ").title())
 
         if missing:
             flash("⚠️ Champs obligatoires manquants : " + ", ".join(missing), "danger")
-            return render_template(
-                "ticket_form.html",
-                mode="edit",
-                vals=f,
-                ticket_id=id,
-                canaux=canaux,
-                now=datetime.now()  # 👈 pass it here
-            )
+            return render_template("ticket_form.html", mode="edit", vals=f, ticket_id=None, canaux=canaux, now=datetime.now())
 
-        # next id (même algo)
         next_id = next_ticket_id()
 
         def ffloat(x):
@@ -327,7 +352,6 @@ def create_ticket():
         now = datetime.now()
         total_code_promo = ffloat(f.get("mnt_rembour")) + ffloat(f.get("mnt_gestco"))
 
-        # auto-remplissage magasin (depuis champs cachés envoyés par le form)
         doc = {
             'id': next_id,
             'date_creation': now.strftime("%Y-%m-%d %H:%M:%S"),
@@ -367,20 +391,14 @@ def create_ticket():
         flash(f"✅ Ticket {next_id} créé avec succès !", "success")
         return redirect(url_for("tickets.list_tickets"))
 
-    return render_template(
-        "ticket_form.html",
-        mode="create",
-        vals={},
-        canaux=canaux,
-        now=datetime.now()
-    )
+    return render_template("ticket_form.html", mode="create", vals={}, canaux=canaux, now=datetime.now())
 
 @tickets_bp.route("/edit/<id>", methods=["GET","POST"])
 def edit_ticket(id):
     ru = require_user()
     if ru: return ru
 
-    doc = coll("tickets").find_one({"id": str(id)}, {"_id":0})
+    doc = _find_ticket_by_id(id)
     if not doc:
         flash("Ticket introuvable.", "warning")
         return redirect(url_for("tickets.list_tickets"))
@@ -393,25 +411,18 @@ def edit_ticket(id):
     if request.method == "POST":
         f = request.form
         cloture_action = "cloturer" in f
+
         missing = []
         if not f.get("nom_prenom","").strip(): missing.append("Nom et Prénom client")
         if not f.get("canal",""): missing.append("Canal")
-        if not f.get("statut",""): missing.append("Statut")
+        if not f.get("statut",""): missing.append("statut")
         if f.get("traitement") == "Exceptionnel" and not f.get("si_exceptionnel","").strip():
             missing.append("Motif pour traitement exceptionnel")
         for k in ["thematique","famille","sous_famille","categorie","sous_categorie","action"]:
             if not f.get(k,"").strip(): missing.append(k.replace("_"," ").title())
         if missing:
             flash("⚠️ Champs obligatoires manquants : " + ", ".join(missing), "danger")
-            # renvoyer les valeurs soumises pour pré-remplir
-            return render_template(
-                "ticket_form.html",
-                mode="edit",
-                vals=f,
-                ticket_id=id,
-                canaux=canaux,
-                now=datetime.now()  # 👈 pass it here
-            )
+            return render_template("ticket_form.html", mode="edit", vals=f, ticket_id=id, canaux=canaux, now=datetime.now())
 
         def ffloat(x):
             try: return float(x or 0)
@@ -449,22 +460,25 @@ def edit_ticket(id):
             'dm': f.get("dm","").strip(),
         })
 
-        # cloture identique
+        # cloture
         if updated["statut"] == "Clôturé":
             if not str(updated.get("date_cloture", "")).strip():
-                updated["date_cloture"] = _now_iso()   # e.g. "2025-08-11 14:45:12"
+                updated["date_cloture"] = _now_iso()
             updated["cloture_by"] = g.user.get("username")
-            updated.pop("heure_cloture", None)       
-            # drop any legacy value in-memory
+            updated.pop("heure_cloture", None)
         if cloture_action:
-            updated["date_cloture"] = _now_iso()  # your function for timestamp
+            updated["date_cloture"] = _now_iso()
             updated["cloture_by"] = g.user.get("username")
-        elif updated["statut"].lower() == "ouvert":
+        elif str(updated.get("statut","")).lower() == "ouvert":
             updated["date_cloture"] = ""
             updated["cloture_by"] = ""
 
-
-        coll("tickets").update_one({"id": str(id)}, {"$set": updated}, upsert=False)
+        # update by id regardless of stored type
+        coll("tickets").update_one(
+            {"$or": [{"id": str(id)}, {"id": _numeric_id(id)}]},
+            {"$set": updated},
+            upsert=False
+        )
         flash(f"✅ Ticket {id} mis à jour avec succès.", "success")
         return redirect(url_for("tickets.list_tickets"))
 
@@ -475,13 +489,16 @@ def close_ticket(id):
     ru = require_user()
     if ru: return ru
     res = coll("tickets").update_one(
-        {"id": str(id), "statut": {"$ne": "Clôturé"}},
+        {"$and": [
+            {"$or": [{"id": str(id)}, {"id": _numeric_id(id)}]},
+            {"statut": {"$ne": "Clôturé"}}
+        ]},
         {"$set": {
             "statut": "Clôturé",
             "date_cloture": _now_iso(),
             "cloture_by": g.user.get("username")
         },
-         "$unset": { "heure_cloture": "" }}   # clean legacy field
+         "$unset": { "heure_cloture": "" }}
     )
     if res.matched_count == 0:
         flash("Déjà clôturé ou introuvable.", "warning")
@@ -508,10 +525,10 @@ def analytics():
     if df.empty:
         stats = {"total": 0, "ouverts": 0, "by_statut": {}, "top_them": []}
     else:
-        df["date_creation"] = pd.to_datetime(df["date_creation"], errors="coerce")
+        df["date_creation"] = pd.to_datetime(df["date_creation"], errors="coerce", dayfirst=True)
         total = len(df)
-        ouverts = (df["statut"]=="Ouvert").sum()
+        ouverts = int((df["statut"]=="Ouvert").sum())
         by_statut = df["statut"].value_counts().to_dict()
         top_them = df["thematique"].value_counts().head(10).reset_index().values.tolist()
-        stats = {"total": total, "ouverts": int(ouverts), "by_statut": by_statut, "top_them": top_them}
+        stats = {"total": total, "ouverts": ouverts, "by_statut": by_statut, "top_them": top_them}
     return render_template("analytics.html", stats=stats)
