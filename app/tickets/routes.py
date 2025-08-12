@@ -16,6 +16,33 @@ EXPECTED_HEADERS = [
     'date_cloture','cloture_by','statut','magasin','num_magasin','ville','bu','region','dr','dm'
 ]
 
+import unicodedata
+
+def _strip_accents(s: str) -> str:
+    return ''.join(c for c in unicodedata.normalize("NFKD", s) if not unicodedata.combining(c))
+
+STATUT_MAP = {
+    "ouvert": "Ouvert",
+    "open": "Ouvert",
+    "en cours": "En cours",
+    "en traitement": "En cours",
+    "cloture": "Clôturé",
+    "cloture ": "Clôturé",
+    "cloturee": "Clôturé",
+    "cloturé": "Clôturé",  # handles weird unicode
+    "cloturé": "Clôturé",
+    "cloturee ": "Clôturé",
+    "resolu": "Résolu",
+    "resolve": "Résolu",
+    "resolue": "Résolu",
+    "resolue ": "Résolu",
+}
+
+def canon_statut(x):
+    s = str(x or "").strip()
+    key = _strip_accents(s).lower()
+    return STATUT_MAP.get(key, s)  # default to original if unknown
+
 def _db():
     return mongo.cx.get_database(current_app.config["MONGO_DBNAME"])
 
@@ -245,7 +272,6 @@ def list_tickets():
     if df.empty:
         return render_template("tickets_list.html", rows=[], agents=[], statuts=[], thems=[], magasins=[], search=search)
 
-    # Date filter (parse with dayfirst=True; iso works too)
     if dmin or dmax:
         dc = parse_date_creation(df.get("date_creation"))
         df["date_creation"] = dc
@@ -254,7 +280,6 @@ def list_tickets():
         if dmax:
             df = df[df["date_creation"].dt.date <= pd.to_datetime(dmax).date()]
 
-    # Global search
     if search:
         t = search
         for col in ["nom_prenom","num_cmd","id_client","magasin","commentaires","id"]:
@@ -270,7 +295,6 @@ def list_tickets():
         )
         df = df[mask]
 
-    # Options filtres (pour select dans UI)
     for col in ["agent","statut","thematique","magasin"]:
         if col not in df.columns: df[col] = ""
     agents   = sorted([x for x in df["agent"].dropna().unique().tolist() if str(x).strip()])
@@ -278,7 +302,6 @@ def list_tickets():
     thems    = sorted([x for x in df["thematique"].dropna().unique().tolist() if str(x).strip()])
     magasins = sorted([x for x in df["magasin"].dropna().unique().tolist() if str(x).strip()])
 
-    # Sort by creation date desc if present
     dc = parse_date_creation(df.get("date_creation"))
     df["__dc"] = dc
     df = df.sort_values(by="__dc", ascending=False, na_position="last").drop(columns=["__dc"])
@@ -287,11 +310,9 @@ def list_tickets():
     for c in display_cols:
         if c not in df.columns: df[c] = ""
 
-    # Format dates for display (no warning, blanks if NaT)
     dc = parse_date_creation(df.get("date_creation"))
     df["date_creation"] = dc.dt.strftime("%d/%m/%Y %H:%M").fillna("")
 
-    # Money columns robust
     import numpy as np
     MONEY_COLS = ["prix_pdts","mnt_commande","mnt_rembour","mnt_gestco","total_code_promo"]
     for c in MONEY_COLS:
@@ -306,11 +327,19 @@ def list_tickets():
             errors="coerce"
         ).fillna(0.0)
 
-    # Only for display in list
     for m in ["mnt_commande","total_code_promo"]:
         df[m] = df[m].map(lambda v: f"{v:.2f} MAD")
 
+    for c in ["agent", "thematique", "magasin"]:
+        if c not in df.columns: df[c] = ""
+        df[c] = df[c].astype(str).str.strip()
+
+    if "statut" not in df.columns:
+        df["statut"] = ""
+    df["statut"] = df["statut"].map(canon_statut)
+    
     rows = df[display_cols].to_dict(orient="records")
+    
     return render_template("tickets_list.html",
                            rows=rows, agents=agents, statuts=statuts, thems=thems, magasins=magasins, search=search)
 

@@ -294,7 +294,8 @@ document.addEventListener("DOMContentLoaded", () => {
     const el = document.getElementById(id);
     el.addEventListener('change', () => {
       const val = el.value.trim();
-      table.column(colIdx).search(val ? `^${escapeRegex(val)}$` : '', true, false).draw();
+      const pattern = val ? `^\\s*${escapeRegex(val)}\\s*$` : '';
+      table.column(colIdx).search(pattern, { regex: true, smart: false, caseInsensitive: true }).draw();
     });
   };
   bindSelect('flt_agent', COL.AGENT);
@@ -403,18 +404,23 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // Density toggle
   const tbl = document.getElementById('ticketsTbl');
-  document.getElementById('btn_density_compact').addEventListener('click', (e) => {
-    tbl.classList.add('dt-compact'); 
-    tbl.classList.remove('dt-cozy');
-    e.currentTarget.classList.add('active');
-    document.getElementById('btn_density_cozy').classList.remove('active');
-  });
-  document.getElementById('btn_density_cozy').addEventListener('click', (e) => {
-    tbl.classList.add('dt-cozy'); 
-    tbl.classList.remove('dt-compact');
-    e.currentTarget.classList.add('active');
-    document.getElementById('btn_density_compact').classList.remove('active');
-  });
+  const btnCompact = document.getElementById('btn_density_compact');
+  const btnCozy = document.getElementById('btn_density_cozy');
+
+  if (btnCompact && btnCozy) {
+    btnCompact.addEventListener('click', (e) => {
+      tbl.classList.add('dt-compact'); 
+      tbl.classList.remove('dt-cozy');
+      e.currentTarget.classList.add('active');
+      btnCozy.classList.remove('active');
+    });
+    btnCozy.addEventListener('click', (e) => {
+      tbl.classList.add('dt-cozy'); 
+      tbl.classList.remove('dt-compact');
+      e.currentTarget.classList.add('active');
+      btnCompact.classList.remove('active');
+    });
+}
 
   // Custom controls functions
   function createCustomControls() {
