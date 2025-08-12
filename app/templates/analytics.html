@@ -62,6 +62,136 @@
     margin-right: 6px;
     font-size: 0.9em;
   }
+
+  /* Filter panel styling */
+  .filter-panel {
+    background: linear-gradient(135deg, #f7fafc, #edf2f7);
+    border-radius: 20px;
+    padding: 24px;
+    margin-bottom: 32px;
+    border: 1px solid #e2e8f0;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.05);
+  }
+
+  .filter-panel h5 {
+    color: #2d3748;
+    font-weight: 700;
+    margin-bottom: 20px;
+    display: flex;
+    align-items: center;
+  }
+
+  .filter-panel h5::before {
+    content: '🔍';
+    margin-right: 8px;
+    font-size: 1.2em;
+  }
+
+  .filter-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px;
+    align-items: end;
+  }
+
+  .filter-group {
+    flex: 1;
+    min-width: 200px;
+  }
+
+  .filter-group label {
+    font-weight: 600;
+    color: #4a5568;
+    margin-bottom: 6px;
+    display: block;
+    font-size: 0.9rem;
+  }
+
+  .filter-group select,
+  .filter-group input {
+    width: 100%;
+    padding: 10px 14px;
+    border: 2px solid #e2e8f0;
+    border-radius: 12px;
+    font-size: 0.9rem;
+    background: #ffffff;
+    transition: all 0.2s ease;
+  }
+
+  .filter-group select:focus,
+  .filter-group input:focus {
+    outline: none;
+    border-color: #c40000;
+    box-shadow: 0 0 0 3px rgba(196, 0, 0, 0.1);
+  }
+
+  .filter-actions {
+    display: flex;
+    gap: 12px;
+    align-items: end;
+    flex-shrink: 0;
+  }
+
+  .btn-filter {
+    padding: 10px 20px;
+    border: none;
+    border-radius: 12px;
+    font-weight: 600;
+    font-size: 0.9rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+
+  .btn-apply {
+    background: linear-gradient(135deg, #c40000, #e05a5a);
+    color: white;
+  }
+
+  .btn-apply:hover {
+    background: linear-gradient(135deg, #a30000, #c40000);
+    transform: translateY(-1px);
+  }
+
+  .btn-reset {
+    background: #f7fafc;
+    color: #4a5568;
+    border: 2px solid #e2e8f0;
+  }
+
+  .btn-reset:hover {
+    background: #edf2f7;
+    border-color: #c40000;
+    color: #c40000;
+  }
+
+  .active-filters {
+    margin-top: 16px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .filter-chip {
+    background: #c40000;
+    color: white;
+    padding: 6px 12px;
+    border-radius: 20px;
+    font-size: 0.8rem;
+    font-weight: 500;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .filter-chip .remove {
+    cursor: pointer;
+    font-weight: bold;
+    opacity: 0.8;
+  }
+
+  .filter-chip .remove:hover {
+    opacity: 1;
+  }
   
   /* Chart container improvements */
   .chart-container {
@@ -147,6 +277,19 @@
     .container-fluid {
       padding: 12px;
     }
+
+    .filter-row {
+      flex-direction: column;
+    }
+
+    .filter-group {
+      min-width: auto;
+    }
+
+    .filter-actions {
+      width: 100%;
+      justify-content: center;
+    }
   }
   
   /* Error state styling */
@@ -188,10 +331,122 @@
   .tile:nth-child(3) { animation-delay: 0.3s; }
   .tile:nth-child(4) { animation-delay: 0.4s; }
   .tile:nth-child(5) { animation-delay: 0.5s; }
+
+    .total-tickets-tile {
+    background: linear-gradient(135deg, #c40000, #e05a5a);
+    color: white;
+    text-align: center;
+  }
+
+  .total-tickets-tile::before {
+    background: rgba(255, 255, 255, 0.3);
+  }
+
+  .total-tickets-number {
+    font-size: 3rem;
+    font-weight: 900;
+    line-height: 1;
+    margin: 10px 0;
+    text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
+  }
+
+  .total-tickets-label {
+    font-size: 1.1rem;
+    font-weight: 600;
+    opacity: 0.9;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+  }
+
 </style>
 
 <div class="container-fluid">
-  <div class="row g-4">
+<!-- Filter Panel -->
+  <div class="filter-panel">
+    <h5>Filtres Analytics</h5>
+    
+    <div class="filter-row">
+      <div class="filter-group">
+        <label for="filter-agent">Agent</label>
+        <select id="filter-agent">
+          <option value="">Tous les agents</option>
+        </select>
+      </div>
+      
+      <div class="filter-group">
+        <label for="filter-canal">Canal</label>
+        <select id="filter-canal">
+          <option value="">Tous les canaux</option>
+        </select>
+      </div>
+      
+      <div class="filter-group">
+        <label for="filter-thematique">Thématique</label>
+        <select id="filter-thematique">
+          <option value="">Toutes les thématiques</option>
+        </select>
+      </div>
+      
+      <div class="filter-group">
+        <label for="filter-action">Action</label>
+        <select id="filter-action">
+          <option value="">Toutes les actions</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="filter-row mt-3">
+      <div class="filter-group">
+        <label for="filter-magasin">Magasin</label>
+        <select id="filter-magasin">
+          <option value="">Tous les magasins</option>
+        </select>
+      </div>
+      
+      <div class="filter-group">
+        <label for="filter-bu">BU</label>
+        <select id="filter-bu">
+          <option value="">Toutes les BU</option>
+        </select>
+      </div>
+      
+      <div class="filter-group">
+        <label for="filter-date-from">Date de début</label>
+        <input type="date" id="filter-date-from">
+      </div>
+      
+      <div class="filter-group">
+        <label for="filter-date-to">Date de fin</label>
+        <input type="date" id="filter-date-to">
+      </div>
+      
+      <div class="filter-actions">
+        <button class="btn-filter btn-apply" onclick="applyFilters()">
+          Appliquer
+        </button>
+        <button class="btn-filter btn-reset" onclick="resetFilters()">
+          Réinitialiser
+        </button>
+      </div>
+    </div>
+
+    <!-- Active filters display -->
+    <div class="active-filters" id="active-filters"></div>
+  </div>
+
+  <!-- Charts Grid with Total Tickets Counter -->
+  <div class="row justify-content-center mb-4">
+    <div class="col-12 d-flex justify-content-center">
+      <div class="tile total-tickets-tile text-center mx-auto w-80">
+        <div class="total-tickets-label">Total Tickets</div>
+        <div class="total-tickets-number" id="total-tickets-count">-</div>
+        <div style="font-size:0.9rem;opacity:.8;">tickets traités</div>
+      </div>
+    </div>
+  </div>
+
+      
+    <div class="row g-4">
     <div class="col-lg-4">
       <div class="tile">
         <div class="tag">TAUX DE CONTACTS PAR BU</div>
@@ -281,6 +536,10 @@ const COLORS = {
   textLight: "#718096"
 };
 
+// Global filter state
+let currentFilters = {};
+let filterOptions = {};
+
 // Utility functions
 const Utils = {
   formatNumber: (n) => n?.toLocaleString('fr-FR') || '0',
@@ -329,12 +588,191 @@ const defaultChartOptions = {
   }
 };
 
-// Enhanced chart drawing functions
+// Chart instances to destroy before recreating
+let chartInstances = {};
+
+// Filter management functions - simplified
+async function loadFilterOptions() {
+  try {
+    const response = await fetch("/analytics/api/filter_options");
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    
+    filterOptions = await response.json();
+    populateFilterDropdowns();
+    
+  } catch (error) {
+    console.error('Erreur lors du chargement des options de filtres:', error);
+  }
+}
+
+function populateFilterDropdowns() {
+  // Populate agents
+  const agentSelect = document.getElementById('filter-agent');
+  agentSelect.innerHTML = '<option value="">Tous les agents</option>';
+  filterOptions.agents?.forEach(agent => {
+    const option = document.createElement('option');
+    option.value = agent;
+    option.textContent = agent;
+    agentSelect.appendChild(option);
+  });
+
+  // Populate canaux
+  const canalSelect = document.getElementById('filter-canal');
+  canalSelect.innerHTML = '<option value="">Tous les canaux</option>';
+  filterOptions.canaux?.forEach(canal => {
+    const option = document.createElement('option');
+    option.value = canal;
+    option.textContent = canal;
+    canalSelect.appendChild(option);
+  });
+
+  // Populate thematiques
+  const themSelect = document.getElementById('filter-thematique');
+  themSelect.innerHTML = '<option value="">Toutes les thématiques</option>';
+  filterOptions.thematiques?.forEach(them => {
+    const option = document.createElement('option');
+    option.value = them;
+    option.textContent = them;
+    themSelect.appendChild(option);
+  });
+
+  // Populate actions
+  const actionSelect = document.getElementById('filter-action');
+  actionSelect.innerHTML = '<option value="">Toutes les actions</option>';
+  filterOptions.actions?.forEach(action => {
+    const option = document.createElement('option');
+    option.value = action;
+    option.textContent = action;
+    actionSelect.appendChild(option);
+  });
+
+  // Populate magasins
+  const magasinSelect = document.getElementById('filter-magasin');
+  magasinSelect.innerHTML = '<option value="">Tous les magasins</option>';
+  filterOptions.magasins?.forEach(magasin => {
+    const option = document.createElement('option');
+    option.value = magasin;
+    option.textContent = magasin;
+    magasinSelect.appendChild(option);
+  });
+
+  // Populate BU
+  const buSelect = document.getElementById('filter-bu');
+  buSelect.innerHTML = '<option value="">Toutes les BU</option>';
+  filterOptions.bus?.forEach(bu => {
+    const option = document.createElement('option');
+    option.value = bu;
+    option.textContent = bu;
+    buSelect.appendChild(option);
+  });
+
+  // Set date range limits
+  if (filterOptions.date_range) {
+    const dateFromInput = document.getElementById('filter-date-from');
+    const dateToInput = document.getElementById('filter-date-to');
+    
+    if (filterOptions.date_range.min_date) {
+      dateFromInput.min = filterOptions.date_range.min_date;
+      dateFromInput.value = filterOptions.date_range.min_date;
+    }
+    if (filterOptions.date_range.max_date) {
+      dateToInput.max = filterOptions.date_range.max_date;
+      dateToInput.value = filterOptions.date_range.max_date;
+    }
+  }
+}
+
+function getFiltersFromForm() {
+  return {
+    agent: document.getElementById('filter-agent').value,
+    canal: document.getElementById('filter-canal').value,
+    thematique: document.getElementById('filter-thematique').value,
+    action: document.getElementById('filter-action').value,
+    magasin: document.getElementById('filter-magasin').value,
+    bu: document.getElementById('filter-bu').value,
+    date_from: document.getElementById('filter-date-from').value,
+    date_to: document.getElementById('filter-date-to').value
+  };
+}
+
+function resetFilters() {
+  currentFilters = {};
+  
+  // Clear all form inputs
+  document.getElementById('filter-agent').value = '';
+  document.getElementById('filter-canal').value = '';
+  document.getElementById('filter-thematique').value = '';
+  document.getElementById('filter-action').value = '';
+  document.getElementById('filter-magasin').value = '';
+  document.getElementById('filter-bu').value = '';
+  document.getElementById('filter-date-from').value = '';
+  document.getElementById('filter-date-to').value = '';
+  
+  updateActiveFiltersDisplay();
+  refreshAllCharts();
+}
+
+function applyFilters() {
+  // lire le formulaire
+  currentFilters = getFiltersFromForm();
+  // retirer les valeurs vides
+  Object.keys(currentFilters).forEach(k => { if (!currentFilters[k]) delete currentFilters[k]; });
+  // rafraîchir l’affichage et les données
+  updateActiveFiltersDisplay();
+  refreshAllCharts();
+}
+
+function updateActiveFiltersDisplay() {
+  const container = document.getElementById('active-filters');
+  container.innerHTML = '';
+  
+  Object.entries(currentFilters).forEach(([key, value]) => {
+    if (value) {
+      const chip = document.createElement('div');
+      chip.className = 'filter-chip';
+      
+      const labelMap = {
+        agent: 'Agent',
+        canal: 'Canal',
+        thematique: 'Thématique',
+        action: 'Action',
+        magasin: 'Magasin',
+        bu: 'BU',
+        date_from: 'Depuis',
+        date_to: 'Jusqu\'au'
+      };
+      
+      chip.innerHTML = `
+        <span>${labelMap[key] || key}: ${value}</span>
+        <span class="remove" onclick="removeFilter('${key}')">×</span>
+      `;
+      
+      container.appendChild(chip);
+    }
+  });
+}
+function removeFilter(filterKey) {
+  delete currentFilters[filterKey];
+  document.getElementById(`filter-${filterKey.replace('_', '-')}`).value = '';
+  updateActiveFiltersDisplay();
+  refreshAllCharts();
+}
+
+function buildQueryString() {
+  const params = new URLSearchParams();
+  Object.entries(currentFilters).forEach(([key, value]) => {
+    if (value) params.append(key, value);
+  });
+  return params.toString();
+}
+
+// Enhanced chart drawing functions with filters
 async function drawPieBU() {
   const chartId = 'pieBU';
   try {
     Utils.showLoading(chartId);
-    const response = await fetch("/analytics/api/by_bu");
+    const queryString = buildQueryString();
+    const response = await fetch(`/analytics/api/by_bu?${queryString}`);
     
     if (!response.ok) {
       throw new Error(`HTTP ${response.status}`);
@@ -348,7 +786,12 @@ async function drawPieBU() {
     
     Utils.hideLoading(chartId);
     
-    new Chart(document.getElementById(chartId), {
+    // Destroy existing chart
+    if (chartInstances[chartId]) {
+      chartInstances[chartId].destroy();
+    }
+    
+    chartInstances[chartId] = new Chart(document.getElementById(chartId), {
       type: "pie",
       data: {
         labels: data.labels,
@@ -403,16 +846,28 @@ async function drawBarAgents() {
   const chartId = 'barAgents';
   try {
     Utils.showLoading(chartId);
-    const response = await fetch("/analytics/api/by_agent");
+    const queryString = buildQueryString();
+    const response = await fetch(`/analytics/api/by_agent?${queryString}`);
     
     if (!response.ok) {
       throw new Error(`HTTP ${response.status}`);
     }
     
     const data = await response.json();
+
+    const totalEl = document.getElementById('total-tickets-count');
+    if (totalEl && typeof data.total === 'number') {
+      totalEl.textContent = Utils.formatNumber(data.total);
+    }
+
     Utils.hideLoading(chartId);
     
-    new Chart(document.getElementById(chartId), {
+    // Destroy existing chart
+    if (chartInstances[chartId]) {
+      chartInstances[chartId].destroy();
+    }
+    
+    chartInstances[chartId] = new Chart(document.getElementById(chartId), {
       type: "bar",
       data: {
         labels: data.labels?.map(s => s.toUpperCase()) || [],
@@ -474,7 +929,8 @@ async function drawDonutCanal() {
   const chartId = 'donutCanal';
   try {
     Utils.showLoading(chartId);
-    const response = await fetch("/analytics/api/by_canal");
+    const queryString = buildQueryString();
+    const response = await fetch(`/analytics/api/by_canal?${queryString}`);
     
     if (!response.ok) {
       throw new Error(`HTTP ${response.status}`);
@@ -483,7 +939,12 @@ async function drawDonutCanal() {
     const data = await response.json();
     Utils.hideLoading(chartId);
     
-    new Chart(document.getElementById(chartId), {
+    // Destroy existing chart
+    if (chartInstances[chartId]) {
+      chartInstances[chartId].destroy();
+    }
+    
+    chartInstances[chartId] = new Chart(document.getElementById(chartId), {
       type: "doughnut",
       data: {
         labels: data.labels || [],
@@ -535,11 +996,12 @@ async function drawDonutCanal() {
   }
 }
 
-async function drawBarThem() {
+async function drawBarThematiques() {
   const chartId = 'barThem';
   try {
     Utils.showLoading(chartId);
-    const response = await fetch("/analytics/api/by_thematique");
+    const queryString = buildQueryString();
+    const response = await fetch(`/analytics/api/by_thematique?${queryString}`);
     
     if (!response.ok) {
       throw new Error(`HTTP ${response.status}`);
@@ -548,34 +1010,40 @@ async function drawBarThem() {
     const data = await response.json();
     Utils.hideLoading(chartId);
     
-    new Chart(document.getElementById(chartId), {
+    // Destroy existing chart
+    if (chartInstances[chartId]) {
+      chartInstances[chartId].destroy();
+    }
+    
+    chartInstances[chartId] = new Chart(document.getElementById(chartId), {
       type: "bar",
       data: {
         labels: data.labels || [],
         datasets: [{
+          label: "Contacts",
           data: data.values || [],
-          backgroundColor: COLORS.primary,
-          borderRadius: 6,
+          backgroundColor: COLORS.primaryMid,
+          borderRadius: 8,
           borderSkipped: false,
-          hoverBackgroundColor: COLORS.primaryMid
+          hoverBackgroundColor: COLORS.primary
         }]
       },
       options: {
         ...defaultChartOptions,
+        indexAxis: 'y',
         scales: {
-          y: {
+          x: {
             grid: { color: "#f0f0f0", drawBorder: false },
             ticks: {
               callback: (value) => value >= 1000 ? `${(value / 1000).toFixed(1)}k` : Utils.formatNumber(value),
               font: { size: 11 }
             }
           },
-          x: {
+          y: {
             grid: { display: false },
-            ticks: {
-              maxRotation: 45,
-              minRotation: 0,
-              font: { size: 10, weight: '600' }
+            ticks: { 
+              font: { size: 11, weight: '600' },
+              maxRotation: 0
             }
           }
         },
@@ -584,11 +1052,11 @@ async function drawBarThem() {
           datalabels: {
             anchor: "end",
             align: "end",
-            color: "#2b6cb0",
+            color: COLORS.primary,
             font: { size: 11, weight: 'bold' },
             formatter: (value, context) => {
               const percentage = data.pct?.[context.dataIndex];
-              return percentage ? `${percentage.toFixed(1).replace(".", ",")}%` : "";
+              return percentage ? `${percentage.toFixed(1)}%` : "";
             }
           },
           tooltip: {
@@ -609,96 +1077,171 @@ async function drawBarThem() {
   }
 }
 
-async function fillActions() {
+async function loadActionsTable() {
   try {
-    const response = await fetch("/analytics/api/actions_amount");
+    const queryString = buildQueryString();
+    const response = await fetch(`/analytics/api/actions_montant?${queryString}`);
     
     if (!response.ok) {
       throw new Error(`HTTP ${response.status}`);
     }
     
     const data = await response.json();
-    const tbody = document.getElementById("actionsBody");
+    const tbody = document.getElementById('actionsBody');
+    const totalElement = document.getElementById('actionsTotal');
     
-    if (!tbody) return;
-    
-    tbody.innerHTML = "";
-    
-    const rows = data.rows || [];
-    
-    if (rows.length === 0) {
-      const tr = document.createElement("tr");
-      tr.innerHTML = '<td colspan="2" class="text-center py-4 text-muted">Aucune donnée disponible</td>';
-      tbody.appendChild(tr);
-      return;
+    if (!data.actions || !data.montants) {
+      throw new Error("Format de données invalide pour le tableau actions");
     }
     
-    rows.forEach((row, index) => {
-      const tr = document.createElement("tr");
-      tr.style.animationDelay = `${index * 0.1}s`;
+    // Clear existing content
+    tbody.innerHTML = '';
+    
+    let total = 0;
+    
+    // Populate table rows
+    data.actions.forEach((action, index) => {
+      const montant = data.montants[index] || 0;
+      total += montant;
       
-      const actionCell = document.createElement("td");
-      actionCell.textContent = row.Action || "AUTRES";
-      actionCell.style.fontWeight = index < 3 ? '600' : '500';
-      
-      const amountCell = document.createElement("td");
-      amountCell.className = "text-end";
-      amountCell.textContent = Utils.formatCurrency(row.amount || 0);
-      
-      // Enhanced styling for top performers
-      if (index === 0) {
-        amountCell.style.background = COLORS.primary;
-        amountCell.style.color = "#ffffff";
-        amountCell.style.fontWeight = "700";
-        amountCell.style.borderRadius = "6px";
-      } else if (index <= 2) {
-        amountCell.style.background = COLORS.primarySoft;
-        amountCell.style.fontWeight = "600";
-        amountCell.style.borderRadius = "6px";
-      }
-      
-      tr.appendChild(actionCell);
-      tr.appendChild(amountCell);
-      tbody.appendChild(tr);
+      const row = document.createElement('tr');
+      row.innerHTML = `
+        <td>${action}</td>
+        <td class="text-end">${Utils.formatCurrency(montant)}</td>
+      `;
+      tbody.appendChild(row);
     });
     
-    // Update total
-    const totalElement = document.getElementById("actionsTotal");
-    if (totalElement) {
-      totalElement.textContent = Utils.formatCurrency(data.total || 0);
+    // Add empty state if no data
+    if (data.actions.length === 0) {
+      const row = document.createElement('tr');
+      row.innerHTML = `
+        <td colspan="2" class="text-center py-4 text-muted">
+          Aucune donnée disponible
+        </td>
+      `;
+      tbody.appendChild(row);
     }
+    
+    // Update total
+    totalElement.textContent = Utils.formatCurrency(total);
     
   } catch (error) {
     console.error('Erreur lors du chargement du tableau actions:', error);
-    const tbody = document.getElementById("actionsBody");
-    if (tbody) {
-      tbody.innerHTML = '<tr><td colspan="2" class="text-center py-4 text-danger">⚠️ Erreur lors du chargement des données</td></tr>';
-    }
+    const tbody = document.getElementById('actionsBody');
+    const totalElement = document.getElementById('actionsTotal');
+    
+    tbody.innerHTML = `
+      <tr>
+        <td colspan="2" class="text-center py-4 text-danger">
+          ⚠️ Erreur lors du chargement des données
+        </td>
+      </tr>
+    `;
+    totalElement.textContent = '0 MAD';
   }
 }
 
-// Initialize dashboard with proper error handling and loading states
-async function initializeDashboard() {
-  const promises = [
+// Main functions to refresh all data
+function refreshAllCharts() {
+  Promise.all([
     drawPieBU(),
     drawBarAgents(),
     drawDonutCanal(),
-    drawBarThem(),
-    fillActions()
-  ];
-  
+    drawBarThematiques(),
+    loadActionsTable()
+  ]).then(() => {
+    console.log('Tous les graphiques ont été mis à jour');
+  }).catch(error => {
+    console.error('Erreur lors de la mise à jour des graphiques:', error);
+  });
+}
+
+// Initialize dashboard
+async function initDashboard() {
   try {
-    await Promise.allSettled(promises);
+    // Load filter options first
+    await loadFilterOptions();
+    
+    // Then load all charts
+    await refreshAllCharts();
+    
     console.log('Dashboard initialisé avec succès');
   } catch (error) {
     console.error('Erreur lors de l\'initialisation du dashboard:', error);
   }
 }
 
-// Initialize dashboard when DOM is ready
-document.addEventListener('DOMContentLoaded', initializeDashboard);
+// Add keyboard shortcuts
+document.addEventListener('keydown', (e) => {
+  // Ctrl+Enter to apply filters
+  if (e.ctrlKey && e.key === 'Enter') {
+    e.preventDefault();
+    applyFilters();
+  }
+  
+  // Ctrl+R to reset filters
+  if (e.ctrlKey && e.key === 'r') {
+    e.preventDefault();
+    resetFilters();
+  }
+});
 
-// Auto-refresh functionality (optional)
-// setInterval(initializeDashboard, 300000); // Refresh every 5 minutes
+// Add form submission handling
+document.addEventListener('DOMContentLoaded', () => {
+  // Initialize dashboard
+  initDashboard();
+  
+  // Add event listeners for Enter key on filter inputs
+  document.querySelectorAll('input, select').forEach(input => {
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        applyFilters();
+      }
+    });
+  });
+  
+  // Auto-refresh every 5 minutes
+  setInterval(() => {
+    if (document.visibilityState === 'visible') {
+      console.log('Auto-refresh des données...');
+      refreshAllCharts();
+    }
+  }, 300000); // 5 minutes
+});
+
+// Handle visibility change for performance
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') {
+    // Refresh data when user returns to tab
+    refreshAllCharts();
+  }
+});
+
+// Export functionality for debugging
+window.analyticsDebug = {
+  currentFilters,
+  chartInstances,
+  refreshAllCharts,
+  Utils,
+  COLORS,
+  filterOptions
+};
+
+// Error handling for unhandled promise rejections
+window.addEventListener('unhandledrejection', event => {
+  console.error('Unhandled promise rejection:', event.reason);
+  event.preventDefault();
+});
+
+// Global error handler
+window.addEventListener('error', event => {
+  console.error('Global error:', event.error);
+});
+
+
+
 </script>
+
 {% endblock %}
