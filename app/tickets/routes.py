@@ -92,7 +92,6 @@ import numpy as np
 NULLY = {"", "None", "none", "nan", "NaN", "_", "-"}
 
 def parse_date_creation(series):
-    # Ensure the series exists and is string-like
     s = pd.Series(series, dtype="string").str.strip()
     s = s.where(~s.isin(NULLY), pd.NA)
 
