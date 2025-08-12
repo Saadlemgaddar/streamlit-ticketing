@@ -257,9 +257,25 @@ def list_tickets():
     # Formatting
     if "date_creation" in df.columns:
         df["date_creation"] = pd.to_datetime(df["date_creation"], errors="coerce").dt.strftime('%d/%m/%Y %H:%M')
+
+    # Make money columns robust, then format
+    import numpy as np
+    MONEY_COLS = ["prix_pdts","mnt_commande","mnt_rembour","mnt_gestco","total_code_promo"]
+    for c in MONEY_COLS:
+        if c not in df.columns:
+            df[c] = 0
+        df[c] = pd.to_numeric(
+            df[c]
+            .astype(str)
+            .str.replace(',', '.', regex=False)                 # 12,3 -> 12.3
+            .str.replace(r'^\s*[_-]\s*$', '', regex=True)       # "_" or "-" -> ""
+            .replace({"None": "", "": np.nan}),
+            errors="coerce"
+        ).fillna(0.0)
+
+    # Only for display
     for m in ["mnt_commande","total_code_promo"]:
-        if m in df.columns:
-            df[m] = df[m].apply(lambda x: f"{float(x):.2f} MAD" if str(x).strip() not in ["","None"] else "0.00 MAD")
+        df[m] = df[m].map(lambda v: f"{v:.2f} MAD")
 
     rows = df[display_cols].to_dict(orient="records")
     return render_template("tickets_list.html",
