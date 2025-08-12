@@ -4,6 +4,7 @@ from datetime import datetime, date
 import io, pandas as pd
 from bson.json_util import dumps
 from datetime import datetime
+from pymongo import ReturnDocument
 
 tickets_bp = Blueprint("tickets", __name__, template_folder="../templates")
 
@@ -29,6 +30,41 @@ def require_user():
 def coll(name: str):
     return _db()[name]
 
+
+SEQ_INIT_DONE = False
+
+def ensure_ticket_sequence():
+    """Crée/initialise le compteur d'ID une seule fois (valeur = max(id existants))."""
+    global SEQ_INIT_DONE
+    if SEQ_INIT_DONE:
+        return
+
+    c = coll("counters")
+    cur = c.find_one({"_id": "tickets"})
+    if cur is None:
+        # On démarre à max(id) s'il existe, sinon 0
+        max_id = 0
+        for r in coll("tickets").find({}, {"_id": 0, "id": 1}):
+            s = str(r.get("id", "")).strip()
+            if s.isdigit():
+                max_id = max(max_id, int(s))
+        c.insert_one({"_id": "tickets", "seq": max_id})
+
+        # index d’unicité sur id (évite les doublons)
+        coll("tickets").create_index("id", unique=True)
+
+    SEQ_INIT_DONE = True
+
+def next_ticket_id() -> str:
+    """Renvoie le prochain ID séquentiel sous forme de string ('1','2',...)."""
+    ensure_ticket_sequence()
+    res = coll("counters").find_one_and_update(
+        {"_id": "tickets"},
+        {"$inc": {"seq": 1}},
+        return_document=ReturnDocument.AFTER,
+        upsert=True
+    )
+    return str(res["seq"])
 
 @tickets_bp.get("/api/canaux")
 def api_canaux():
@@ -162,7 +198,6 @@ def api_thematiques_children():
 
     return jsonify({"level": "none", "values": []})
 
-
 @tickets_bp.route("/list")
 def list_tickets():
     ru = require_user()
@@ -267,13 +302,7 @@ def create_ticket():
             )
 
         # next id (même algo)
-        ids = list(coll("tickets").find({}, {"_id":0,"id":1}))
-        try:
-            nums = [int(x.get("id",0)) for x in ids if str(x.get("id","")).isdigit()]
-            max_id = max(nums) if nums else 0
-            next_id = str(max_id+1) if max_id else str(int(datetime.now().timestamp()))
-        except:
-            next_id = str(int(datetime.now().timestamp()))
+        next_id = next_ticket_id()
 
         def ffloat(x):
             try: return float(x or 0)

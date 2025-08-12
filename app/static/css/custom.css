@@ -809,3 +809,146 @@ textarea.form-control {
     padding: 0 .5rem;
   }
 }
+
+/* ===== Admin page (scoped) ===== */
+.admin-console .page-title,
+.admin-console h4 {
+  letter-spacing: .2px;
+}
+
+/* Tabs: pill look with subtle shadow */
+.admin-console .admin-tabs .btn {
+  border-radius: 999px;
+  padding: .6rem 1.1rem;
+  border: 1.5px solid #e5e7eb;
+  background: #fff;
+  color: #475569;
+  box-shadow: 0 4px 12px rgba(0,0,0,.04);
+}
+.admin-console .admin-tabs .btn.active,
+.admin-console .admin-tabs .btn:hover {
+  border-color: transparent;
+  color: #fff;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  box-shadow: 0 8px 20px rgba(102,126,234,.25);
+}
+
+/* Sticky translucent toolbar */
+.admin-console .admin-toolbar {
+  position: sticky;
+  top: 70px;               /* sits under your navbar */
+  z-index: 15;
+  background: rgba(255,255,255,.75);
+  backdrop-filter: blur(10px);
+  border: 1px solid #edf0f2;
+  border-radius: 12px;
+  padding: .6rem .75rem;
+  box-shadow: 0 10px 25px rgba(0,0,0,.06);
+}
+
+/* Search input with icon */
+.admin-console .admin-search .search-icon {
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: .95rem;
+  color: #94a3b8;
+  pointer-events: none;
+}
+.admin-console .admin-search .form-control {
+  border: 2px solid #e2e8f0;
+}
+.admin-console .admin-search .form-control:focus {
+  border-color: #a5b4fc;
+  box-shadow: 0 0 0 3px rgba(165,180,252,.22);
+}
+
+/* List group (Canaux) */
+.admin-console #canauxList .list-group-item {
+  display: flex; justify-content: space-between; align-items: center;
+  border: 1px solid #eef2f7;
+  border-radius: 10px;
+  margin-bottom: .5rem;
+  padding: .75rem 1rem;
+  box-shadow: 0 4px 10px rgba(0,0,0,.03);
+}
+.admin-console #canauxList .list-group-item:hover {
+  background: rgba(102,126,234,.05);
+}
+
+/* Tables (Magasins / Thématiques / Agents) */
+.admin-console .table-responsive {
+  border: 1px solid #eef2f7;
+  border-radius: 12px;
+  box-shadow: 0 10px 25px rgba(0,0,0,.05);
+}
+.admin-console table thead th {
+  background: linear-gradient(180deg, #f8fafc 0%, #eef2f7 100%);
+  border-bottom: none;
+  font-size: .72rem;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  color: #64748b;
+}
+.admin-console table tbody td {
+  vertical-align: middle;
+  border-color: #f1f5f9;
+}
+.admin-console table tbody tr:hover td {
+  background: rgba(102,126,234,.04);
+}
+
+/* Inline editable inputs */
+.admin-console table input.form-control.form-control-sm {
+  border: 1.5px solid #e5e7eb;
+  border-radius: 8px;
+  padding: .35rem .55rem;
+}
+.admin-console table input.form-control.form-control-sm:focus {
+  border-color: #a5b4fc;
+  box-shadow: 0 0 0 3px rgba(165,180,252,.22);
+}
+
+/* Action buttons in tables */
+.admin-console .btn-icon {
+  width: 34px; height: 34px; display: inline-flex; align-items: center; justify-content: center;
+  border-radius: 10px;
+  border: 1.5px solid #ffe4e6;
+  background: #fff0f3;
+  color: #e11d48;
+}
+.admin-console .btn-icon:hover {
+  background: #e11d48; color: #fff; border-color: transparent;
+  box-shadow: 0 8px 18px rgba(225,29,72,.25);
+}
+
+/* “Add” buttons */
+.admin-console .btn-primary {
+  border-radius: 10px;
+  padding: .65rem 1.1rem;
+}
+
+/* Empty state */
+.admin-console .empty {
+  text-align: center;
+  color: #94a3b8;
+  padding: 2.5rem 1rem;
+  border: 1px dashed #e5e7eb;
+  border-radius: 12px;
+  background: #fff;
+}
+
+/* Mobile tweaks */
+@media (max-width: 768px){
+  .admin-console .admin-toolbar { top: 60px; padding: .5rem; }
+  .admin-console .admin-tabs .btn { padding: .5rem .9rem; }
+  .admin-console table thead { display: none; }
+  .admin-console table tbody td { display:block; padding: .6rem .8rem; }
+  .admin-console table tbody tr { border-bottom: 1px solid #eef2f7; }
+}
+
+.admin-console .empty {
+  text-align:center; color:#94a3b8; padding:2rem 1rem;
+  border:1px dashed #e5e7eb; border-radius:12px; background:#fff;
+}

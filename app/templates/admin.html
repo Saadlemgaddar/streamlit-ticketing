@@ -1,0 +1,430 @@
+{% extends "base.html" %}
+{% block content %}
+
+<style>
+  /* Light polish */
+  .admin-toolbar .btn { border-radius: 12px; }
+  .table thead th { white-space: nowrap; }
+  .table tbody td input.form-control-sm { min-width: 140px; }
+  .tab-pane { animation: fade .15s ease-in; }
+  @keyframes fade { from {opacity:.4} to {opacity:1} }
+  .searchbar { max-width: 360px; }
+</style>
+
+<div class="container-fluid admin-console">
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <div>
+      <h3 class="mb-0">Console d’administration</h3>
+      <div class="text-muted small">Gérer canaux, magasins, thématiques et agents</div>
+    </div>
+    <div class="admin-toolbar d-flex gap-2">
+      <button id="btnRefreshAll" class="btn btn-outline-secondary">↻ Actualiser</button>
+    </div>
+  </div>
+
+  <ul class="nav nav-pills gap-2 mb-3 admin-tabs" id="admTabs" role="tablist">
+    <li class="nav-item"><button class="btn btn-outline-primary active" data-target="#tab-canaux">Canaux</button></li>
+    <li class="nav-item"><button class="btn btn-outline-primary" data-target="#tab-magasins">Magasins</button></li>
+    <li class="nav-item"><button class="btn btn-outline-primary" data-target="#tab-thematiques">Thématiques</button></li>
+    <li class="nav-item"><button class="btn btn-outline-primary" data-target="#tab-agents">Agents</button></li>
+  </ul>
+
+  <!-- CANAUX -->
+  <div id="tab-canaux" class="tab-pane card shadow-sm p-3 active">
+    <div class="d-flex flex-wrap gap-2 align-items-center mb-3">
+      <div class="input-group" style="max-width:420px">
+        <span class="input-group-text">Nouveau canal</span>
+        <input id="canalInput" class="form-control" placeholder="Ex: Téléphone">
+        <button class="btn btn-primary" onclick="addCanal()">Ajouter</button>
+      </div>
+      <input id="searchCanaux" class="form-control searchbar" placeholder="🔎 Rechercher...">
+    </div>
+    <ul id="canauxList" class="list-group small"></ul>
+  </div>
+
+  <!-- MAGASINS -->
+  <div id="tab-magasins" class="tab-pane card shadow-sm p-3" style="display:none;">
+    <div class="d-flex flex-wrap gap-2 align-items-center mb-3">
+      <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#modalMagasin">➕ Ajouter un magasin</button>
+      <input id="searchMagasins" class="form-control searchbar" placeholder="🔎 Magasin, ville, code...">
+      <div class="text-muted small">Champs: Magasin, Code magasin, Ville, BU, Region, DR, DM</div>
+    </div>
+    <div class="table-responsive">
+      <table class="table table-hover table-sm align-middle">
+        <thead class="table-light">
+          <tr>
+            <th>Magasin</th><th>Code</th><th>Ville</th><th>BU</th><th>Region</th><th>DR</th><th>DM</th><th class="text-end">Actions</th>
+          </tr>
+        </thead>
+        <tbody id="magasinsTbody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- THÉMATIQUES -->
+  <div id="tab-thematiques" class="tab-pane card shadow-sm p-3" style="display:none;">
+    <div class="d-flex flex-wrap gap-2 align-items-center mb-3">
+      <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#modalThematique">➕ Ajouter une ligne</button>
+      <input id="searchThem" class="form-control searchbar" placeholder="🔎 Thématique, famille, catégorie...">
+    </div>
+    <div class="table-responsive">
+      <table class="table table-hover table-sm align-middle">
+        <thead class="table-light">
+          <tr>
+            <th>Thématique</th><th>Famille</th><th>Sous Famille</th><th>Catégorie</th><th>Sous catégorie </th><th>Action</th><th class="text-end">Actions</th>
+          </tr>
+        </thead>
+        <tbody id="themTbody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- AGENTS -->
+  <div id="tab-agents" class="tab-pane card shadow-sm p-3" style="display:none;">
+    <div class="d-flex flex-wrap gap-2 align-items-center mb-3">
+      <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#modalAgent">➕ Nouvel agent</button>
+      <input id="searchAgents" class="form-control searchbar" placeholder="🔎 Rechercher par username / nom / email">
+    </div>
+    <div class="table-responsive">
+      <table class="table table-hover table-sm align-middle">
+        <thead class="table-light">
+          <tr>
+            <th>Username</th><th>Nom complet</th><th>Email</th><th class="text-end">Actions</th>
+          </tr>
+        </thead>
+        <tbody id="agentsTbody"></tbody>
+      </table>
+    </div>
+  </div>
+
+</div>
+
+<!-- ===== Modals ===== -->
+
+<!-- Add Magasin -->
+<div class="modal fade" id="modalMagasin" tabindex="-1">
+  <div class="modal-dialog modal-lg modal-dialog-scrollable">
+    <form class="modal-content" onsubmit="submitMagasinModal(event)">
+      <div class="modal-header">
+        <h5 class="modal-title">Ajouter un magasin</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body row g-3">
+        {% for f in ["Magasin","Code magasin","Ville","BU","Region","DR","DM"] %}
+        <div class="col-md-6">
+          <label class="form-label">{{f}}</label>
+          <input class="form-control" id="m_{{f}}" placeholder="{{f}}">
+        </div>
+        {% endfor %}
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-light" data-bs-dismiss="modal" type="button">Annuler</button>
+        <button class="btn btn-primary" type="submit">Ajouter</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Add Thematique -->
+<div class="modal fade" id="modalThematique" tabindex="-1">
+  <div class="modal-dialog modal-xl modal-dialog-scrollable">
+    <form class="modal-content" onsubmit="submitThematiqueModal(event)">
+      <div class="modal-header">
+        <h5 class="modal-title">Ajouter une thématique</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body row g-3">
+        {% for f in ["Thematique", "Famille", "Sous famille", "Catégorie", "Sous catégorie ", "Actions"] %}
+        <div class="col-md-4">
+          <label class="form-label">{{f}}</label>
+          <input class="form-control" id="t_{{f}}" placeholder="{{f}}">
+        </div>
+        {% endfor %}
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-light" data-bs-dismiss="modal" type="button">Annuler</button>
+        <button class="btn btn-primary" type="submit">Ajouter</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Add/Edit Agent -->
+<div class="modal fade" id="modalAgent" tabindex="-1">
+  <div class="modal-dialog">
+    <form class="modal-content" onsubmit="submitAgentModal(event)">
+      <div class="modal-header">
+        <h5 class="modal-title" id="agentModalTitle">Nouvel agent</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body g-3">
+        <input type="hidden" id="agent_id">
+        <div class="mb-2">
+          <label class="form-label">Username *</label>
+          <input class="form-control" id="agent_username" required>
+        </div>
+        <div class="mb-2">
+          <label class="form-label">Mot de passe <span class="text-muted small">(obligatoire à la création)</span></label>
+          <input class="form-control" id="agent_password" placeholder="Laisser vide pour ne pas changer">
+        </div>
+        <div class="mb-2">
+          <label class="form-label">Nom complet</label>
+          <input class="form-control" id="agent_full_name">
+        </div>
+        <div class="mb-2">
+          <label class="form-label">Email</label>
+          <input class="form-control" id="agent_email">
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-light" data-bs-dismiss="modal" type="button">Annuler</button>
+        <button class="btn btn-primary" type="submit" id="agentSubmitBtn">Enregistrer</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Toast (Bootstrap) -->
+<div class="position-fixed bottom-0 end-0 p-3" style="z-index:1080">
+  <div id="liveToast" class="toast align-items-center text-bg-dark border-0" role="alert">
+    <div class="d-flex">
+      <div class="toast-body" id="toastBody">Action effectuée.</div>
+      <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
+    </div>
+  </div>
+</div>
+
+<script>
+function $(q){ return document.querySelector(q); }
+function ce(tag, attrs={}, text=""){ const el=document.createElement(tag); Object.entries(attrs).forEach(([k,v])=>el.setAttribute(k,v)); if(text) el.textContent=text; return el; }
+function toast(msg){ $("#toastBody").textContent = msg; bootstrap.Toast.getOrCreateInstance($("#liveToast")).show(); }
+
+const CSRF_TOKEN = "{{ csrf_token() }}";
+function withCsrf(headers = {}) { return Object.assign({ "X-CSRFToken": CSRF_TOKEN }, headers); }
+
+// Tabs
+document.querySelectorAll('#admTabs button').forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    document.querySelectorAll('.tab-pane').forEach(p=>p.style.display='none');
+    document.querySelectorAll('#admTabs button').forEach(b=>b.classList.remove('active'));
+    btn.classList.add('active');
+    document.querySelector(btn.dataset.target).style.display = 'block';
+  });
+});
+$("#btnRefreshAll").addEventListener("click", ()=>{ refreshCanaux(); refreshMagasins(); refreshThem(); refreshAgents(); });
+
+// ================= CANAUX =================
+let CANAUX_CACHE = [];
+async function refreshCanaux(){
+  const res = await fetch("/_admin/api/canaux");
+  const data = await res.json();
+  CANAUX_CACHE = data.items || [];
+  drawCanaux($("#searchCanaux").value || "");
+  $("#searchCanaux").oninput = (e)=> drawCanaux(e.target.value);
+}
+function drawCanaux(q){
+  const t = (q||"").toLowerCase();
+  const ul = $("#canauxList"); ul.innerHTML = "";
+  CANAUX_CACHE.filter(c => c.toLowerCase().includes(t)).forEach(c=>{
+    const li = ce("li", {class:"list-group-item d-flex justify-content-between align-items-center"});
+    li.append(ce("span",{}, c));
+    const del = ce("button",{class:"btn btn-sm btn-outline-danger"},"Supprimer");
+    del.onclick = async ()=>{
+      await fetch(`/_admin/api/canaux?canal=${encodeURIComponent(c)}`, {method:"DELETE", headers: withCsrf()});
+      toast("Canal supprimé");
+      refreshCanaux();
+    };
+    li.appendChild(del);
+    ul.appendChild(li);
+  });
+}
+async function addCanal(){
+  const canal = $("#canalInput").value.trim();
+  if(!canal) return toast("Canal requis");
+  const res = await fetch("/_admin/api/canaux",{method:"POST", headers: withCsrf({"Content-Type":"application/json"}), body: JSON.stringify({ canal })});
+  const ok = res.ok;
+  const j = await res.json().catch(()=>({}));
+  if(!ok) return toast(j.error || "Erreur");
+  $("#canalInput").value=""; toast("Canal ajouté"); refreshCanaux();
+}
+
+// ================= MAGASINS =================
+let MAGASINS_CACHE = [];
+async function refreshMagasins(){
+  const res = await fetch("/_admin/api/magasins");
+  const data = await res.json();
+  MAGASINS_CACHE = data.rows || [];
+  drawMagasins($("#searchMagasins").value || "");
+  $("#searchMagasins").oninput = (e)=> drawMagasins(e.target.value);
+}
+function drawMagasins(q){
+  const t = (q||"").toLowerCase();
+  const tb = $("#magasinsTbody"); tb.innerHTML="";
+  MAGASINS_CACHE.filter(r=>{
+    return ["Magasin","Code magasin","Ville","BU","Region","DR","DM"]
+      .some(k => String(r[k]||"").toLowerCase().includes(t));
+  }).forEach(r=>{
+    const tr = ce("tr");
+    const fields = ["Magasin","Code magasin","Ville","BU","Region","DR","DM"];
+    fields.forEach(f=>{
+      const td = ce("td");
+      const inp = ce("input",{class:"form-control form-control-sm", value: r[f]||""});
+      inp.onchange = async ()=>{
+        await fetch(`/_admin/api/magasins/${r._id}`,{method:"PUT", headers: withCsrf({"Content-Type":"application/json"}), body: JSON.stringify({ [f]: inp.value })});
+        toast("Magasin mis à jour");
+      };
+      td.appendChild(inp); tr.appendChild(td);
+    });
+    const tdA = ce("td",{class:"text-end"});
+    const btn = ce("button",{class:"btn btn-sm btn-outline-danger"},"Supprimer");
+    btn.onclick = async ()=>{
+      if(confirm("Supprimer ce magasin ?")){
+        await fetch(`/_admin/api/magasins/${r._id}`,{method:"DELETE", headers: withCsrf()});
+        toast("Magasin supprimé");
+        refreshMagasins();
+      }
+    };
+    tdA.appendChild(btn); tr.appendChild(tdA);
+    tb.appendChild(tr);
+  });
+}
+function submitMagasinModal(e){
+  e.preventDefault();
+  const payload = {};
+  ["Magasin","Code magasin","Ville","BU","Region","DR","DM"].forEach(f=> payload[f] = document.getElementById("m_"+f).value.trim());
+  if(!payload["Magasin"]) return toast("Magasin requis");
+  fetch("/_admin/api/magasins",{method:"POST", headers: withCsrf({"Content-Type":"application/json"}), body: JSON.stringify(payload)})
+    .then(r=>r.json().then(j=>({ok:r.ok,j}))).then(({ok,j})=>{
+      if(!ok) return toast(j.error || "Erreur");
+      ["Magasin","Code magasin","Ville","BU","Region","DR","DM"].forEach(f=> document.getElementById("m_"+f).value="");
+      bootstrap.Modal.getInstance(document.getElementById('modalMagasin')).hide();
+      toast("Magasin ajouté"); refreshMagasins();
+    });
+}
+
+// ================= THÉMATIQUES =================
+let THEMS_CACHE = [];
+async function refreshThem(){
+  const res = await fetch("/_admin/api/thematiques");
+  const data = await res.json();
+  THEMS_CACHE = data.rows || [];
+  drawThem($("#searchThem").value || "");
+  $("#searchThem").oninput = (e)=> drawThem(e.target.value);
+}
+function drawThem(q){
+  const t = (q||"").toLowerCase();
+  const tb = $("#themTbody"); tb.innerHTML="";
+  (THEMS_CACHE).filter(r=>{
+    return ["Thematique", "Famille", "Sous famille", "Catégorie", "Sous catégorie ", "Actions"]
+      .some(k => String(r[k]||"").toLowerCase().includes(t));
+  }).forEach(r=>{
+    const tr = ce("tr");
+    const fields = ["Thematique", "Famille", "Sous famille", "Catégorie", "Sous catégorie ", "Actions"];
+    fields.forEach(f=>{
+      const td = ce("td");
+      const inp = ce("input",{class:"form-control form-control-sm", value: r[f]||""});
+      inp.onchange = async ()=>{
+        await fetch(`/_admin/api/thematiques/${r._id}`,{
+          method:"PUT", headers: withCsrf({"Content-Type":"application/json"}),
+          body: JSON.stringify({ [f]: inp.value })
+        });
+        toast("Ligne mise à jour");
+      };
+      td.appendChild(inp); tr.appendChild(td);
+    });
+    const tdA = ce("td",{class:"text-end"});
+    const btn = ce("button",{class:"btn btn-sm btn-outline-danger"},"Supprimer");
+    btn.onclick = async ()=>{
+      if(confirm("Supprimer cette ligne ?")){
+        await fetch(`/_admin/api/thematiques/${r._id}`,{method:"DELETE", headers: withCsrf()});
+        toast("Ligne supprimée");
+        refreshThem();
+      }
+    };
+    tdA.appendChild(btn); tr.appendChild(tdA);
+    tb.appendChild(tr);
+  });
+}
+function submitThematiqueModal(e){
+  e.preventDefault();
+  const payload = {};
+  ["Thematique", "Famille", "Sous famille", "Catégorie", "Sous catégorie ", "Actions"].forEach(f=> payload[f] = document.getElementById("t_"+f).value.trim());
+  if(!payload["Thematique"]) return toast("Thématique requise");
+  fetch("/_admin/api/thematiques",{method:"POST", headers: withCsrf({"Content-Type":"application/json"}), body: JSON.stringify(payload)})
+    .then(r=>r.json().then(j=>({ok:r.ok,j}))).then(({ok,j})=>{
+      if(!ok) return toast(j.error || "Erreur");
+      ["Thematique", "Famille", "Sous famille", "Catégorie", "Sous catégorie ", "Actions"].forEach(f=> document.getElementById("t_"+f).value="");
+      bootstrap.Modal.getInstance(document.getElementById('modalThematique')).hide();
+      toast("Thématique ajoutée"); refreshThem();
+    });
+}
+
+// ================= AGENTS =================
+let AGENTS_CACHE = [];
+async function refreshAgents(){
+  const res = await fetch("/_admin/api/agents");
+  const data = await res.json();
+  AGENTS_CACHE = data.rows || data.agents || []; // support old or new format
+  drawAgents($("#searchAgents").value || "");
+  $("#searchAgents").oninput = (e)=> drawAgents(e.target.value);
+}
+function drawAgents(q){
+  const t = (q||"").toLowerCase();
+  const tb = $("#agentsTbody"); tb.innerHTML="";
+  (AGENTS_CACHE).filter(r=>{
+    return ["username","full_name","email"].some(k => String(r[k]||"").toLowerCase().includes(t));
+  }).forEach(r=>{
+    const tr = ce("tr");
+    tr.append( ce("td",{}, r.username || "") );
+    tr.append( ce("td",{}, r.full_name || "") );
+    tr.append( ce("td",{}, r.email || "") );
+    const tdA = ce("td",{class:"text-end"});
+    const edit = ce("button",{class:"btn btn-sm btn-outline-secondary me-2"},"Modifier");
+    edit.onclick = ()=> openAgentModal(r);
+    const del = ce("button",{class:"btn btn-sm btn-outline-danger"},"Supprimer");
+    del.onclick = async ()=>{
+      if(!confirm("Supprimer cet agent ?")) return;
+      await fetch(`/_admin/api/agents/${r._id}`,{method:"DELETE", headers: withCsrf()});
+      toast("Agent supprimé"); refreshAgents();
+    };
+    tdA.append(edit, del); tr.appendChild(tdA);
+    tb.appendChild(tr);
+  });
+}
+function openAgentModal(row){
+  $("#agentModalTitle").textContent = row ? "Modifier l’agent" : "Nouvel agent";
+  $("#agent_id").value = row? row._id : "";
+  $("#agent_username").value = row? (row.username||"") : "";
+  $("#agent_password").value = ""; // never show existing
+  $("#agent_full_name").value = row? (row.full_name||"") : "";
+  $("#agent_email").value = row? (row.email||"") : "";
+  new bootstrap.Modal(document.getElementById('modalAgent')).show();
+}
+function submitAgentModal(e){
+  e.preventDefault();
+  const _id = $("#agent_id").value;
+  const payload = {
+    username: $("#agent_username").value.trim(),
+    full_name: $("#agent_full_name").value.trim(),
+    email: $("#agent_email").value.trim()
+  };
+  const pwd = $("#agent_password").value.trim();
+  if(!_id && !pwd){ return toast("Mot de passe requis à la création"); }
+  if(pwd) payload.password = pwd;
+
+  const url = _id ? `/_admin/api/agents/${_id}` : "/_admin/api/agents";
+  const method = _id ? "PUT" : "POST";
+
+  fetch(url,{ method, headers: withCsrf({"Content-Type":"application/json"}), body: JSON.stringify(payload)})
+    .then(r=>r.json().then(j=>({ok:r.ok,j}))).then(({ok,j})=>{
+      if(!ok) return toast(j.error || "Erreur");
+      bootstrap.Modal.getInstance(document.getElementById('modalAgent')).hide();
+      toast(_id? "Agent mis à jour" : "Agent créé");
+      refreshAgents();
+    });
+}
+
+// Init
+refreshCanaux(); refreshMagasins(); refreshThem(); refreshAgents();
+</script>
+{% endblock %}

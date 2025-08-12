@@ -1,50 +1,704 @@
 {% extends "base.html" %}
 {% block content %}
-<h4 class="mb-3">📊 Analytics</h4>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link rel="preconnect" href="https://cdn.jsdelivr.net" />
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.5"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2"></script>
 
-<div class="row g-3">
-  <div class="col-md-3">
-    <div class="card"><div class="card-body">
-      <div class="text-muted">Tickets total</div>
-      <div class="fs-4 fw-bold">{{ stats.total }}</div>
-    </div></div>
-  </div>
-  <div class="col-md-3">
-    <div class="card"><div class="card-body">
-      <div class="text-muted">Tickets ouverts</div>
-      <div class="fs-4 fw-bold">{{ stats.ouverts }}</div>
-    </div></div>
-  </div>
-</div>
+<style>
+  /* Enhanced tile styling with modern design */
+  .tile {
+    border-radius: 20px;
+    padding: 24px;
+    background: #ffffff;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+    position: relative;
+    overflow: hidden;
+  }
+  
+  .tile:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.12);
+  }
+  
+  .tile::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 4px;
+    background: linear-gradient(90deg, #c40000, #e05a5a);
+    opacity: 0.8;
+  }
+  
+  .tile h6 {
+    margin: 0 0 1rem 0;
+    font-weight: 700;
+    color: #2d3748;
+  }
+  
+  /* Enhanced tag design */
+  .tag {
+    display: inline-flex;
+    align-items: center;
+    background: linear-gradient(135deg, #c40000, #e05a5a);
+    color: #ffffff;
+    padding: 8px 16px;
+    border-radius: 25px;
+    font-weight: 600;
+    font-size: 0.85rem;
+    letter-spacing: 0.5px;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+    margin-bottom: 16px;
+    box-shadow: 0 2px 8px rgba(196, 0, 0, 0.2);
+  }
+  
+  .tag::before {
+    content: '📊';
+    margin-right: 6px;
+    font-size: 0.9em;
+  }
+  
+  /* Chart container improvements */
+  .chart-container {
+    position: relative;
+    margin-top: 12px;
+  }
+  
+  /* Loading states */
+  .chart-loading {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 220px;
+    color: #718096;
+    font-style: italic;
+  }
+  
+  .chart-loading::before {
+    content: '⏳ ';
+    margin-right: 8px;
+  }
+  
+  /* Enhanced table styling */
+  .table-actions {
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.05);
+  }
+  
+  .table-actions th {
+    background: linear-gradient(135deg, #c40000, #a30000);
+    color: #ffffff;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    padding: 16px;
+    border: none;
+    font-size: 0.9rem;
+  }
+  
+  .table-actions tbody tr {
+    transition: background-color 0.2s ease;
+  }
+  
+  .table-actions tbody tr:hover {
+    background-color: #fff8f8 !important;
+    transform: scale(1.01);
+  }
+  
+  .table-actions tbody tr:nth-child(odd) td {
+    background: #fafafa;
+  }
+  
+  .table-actions tbody tr:nth-child(even) td {
+    background: #ffffff;
+  }
+  
+  .table-actions td {
+    padding: 14px 16px;
+    border: none;
+    font-weight: 500;
+  }
+  
+  .table-actions tfoot th {
+    background: #2d3748;
+    color: #ffffff;
+    font-weight: 700;
+    padding: 16px;
+  }
+  
+  /* Responsive improvements */
+  @media (max-width: 768px) {
+    .tile {
+      padding: 16px;
+      margin-bottom: 16px;
+    }
+    
+    .tag {
+      font-size: 0.8rem;
+      padding: 6px 12px;
+    }
+    
+    .container-fluid {
+      padding: 12px;
+    }
+  }
+  
+  /* Error state styling */
+  .chart-error {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 220px;
+    color: #e53e3e;
+    font-style: italic;
+    background: #fed7d7;
+    border-radius: 8px;
+    margin-top: 12px;
+  }
+  
+  .chart-error::before {
+    content: '⚠️ ';
+    margin-right: 8px;
+  }
+  
+  /* Animation for data updates */
+  @keyframes fadeInUp {
+    from {
+      opacity: 0;
+      transform: translateY(20px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+  
+  .tile {
+    animation: fadeInUp 0.6s ease forwards;
+  }
+  
+  .tile:nth-child(1) { animation-delay: 0.1s; }
+  .tile:nth-child(2) { animation-delay: 0.2s; }
+  .tile:nth-child(3) { animation-delay: 0.3s; }
+  .tile:nth-child(4) { animation-delay: 0.4s; }
+  .tile:nth-child(5) { animation-delay: 0.5s; }
+</style>
 
-<div class="row g-3 mt-1">
-  <div class="col-md-6">
-    <div class="card"><div class="card-body">
-      <h6>Répartition par statut</h6>
-      <canvas id="byStatut"></canvas>
-    </div></div>
-  </div>
-  <div class="col-md-6">
-    <div class="card"><div class="card-body">
-      <h6>Top thématiques</h6>
-      <canvas id="topThem"></canvas>
-    </div></div>
+<div class="container-fluid">
+  <div class="row g-4">
+    <div class="col-lg-4">
+      <div class="tile">
+        <div class="tag">TAUX DE CONTACTS PAR BU</div>
+        <div class="chart-container">
+          <div id="pieBU-loading" class="chart-loading">Chargement des données...</div>
+          <canvas id="pieBU" height="220" style="display: none;" role="img" aria-label="Graphique circulaire montrant la répartition des contacts par Business Unit"></canvas>
+        </div>
+      </div>
+    </div>
+    
+    <div class="col-lg-8">
+      <div class="tile">
+        <div class="tag">TRAITEMENT DES CONTACTS PAR TC</div>
+        <div class="chart-container">
+          <div id="barAgents-loading" class="chart-loading">Chargement des données...</div>
+          <canvas id="barAgents" height="220" style="display: none;" role="img" aria-label="Graphique en barres montrant le nombre de contacts traités par télé-conseiller"></canvas>
+        </div>
+      </div>
+    </div>
+    
+    <div class="col-lg-5">
+      <div class="tile">
+        <div class="tag">RÉPARTITION DES CONTACTS PAR CANAL</div>
+        <div class="chart-container">
+          <div id="donutCanal-loading" class="chart-loading">Chargement des données...</div>
+          <canvas id="donutCanal" height="240" style="display: none;" role="img" aria-label="Graphique en anneau montrant la répartition des contacts par canal de communication"></canvas>
+        </div>
+      </div>
+    </div>
+    
+    <div class="col-lg-7">
+      <div class="tile">
+        <div class="tag">CONTACTS PAR THÉMATIQUE</div>
+        <div class="chart-container">
+          <div id="barThem-loading" class="chart-loading">Chargement des données...</div>
+          <canvas id="barThem" height="240" style="display: none;" role="img" aria-label="Graphique en barres montrant le nombre de contacts par thématique"></canvas>
+        </div>
+      </div>
+    </div>
+    
+    <div class="col-12">
+      <div class="tile">
+        <div class="tag">ACTIONS / MONTANT</div>
+        <div class="table-responsive mt-3">
+          <table class="table table-actions align-middle" role="table" aria-label="Tableau des actions et montants associés">
+            <thead>
+              <tr>
+                <th scope="col">Actions</th>
+                <th scope="col" class="text-end">Total code promo (MAD)</th>
+              </tr>
+            </thead>
+            <tbody id="actionsBody">
+              <tr>
+                <td colspan="2" class="text-center py-4">
+                  <span class="text-muted">⏳ Chargement des données...</span>
+                </td>
+              </tr>
+            </tbody>
+            <tfoot>
+              <tr>
+                <th scope="row">Total général</th>
+                <th class="text-end" id="actionsTotal" aria-label="Montant total">0 MAD</th>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      </div>
+    </div>
   </div>
 </div>
 
 <script>
-const byStatut = {{ stats.by_statut|tojson }};
-const topThem  = {{ stats.top_them|tojson }};
-document.addEventListener("DOMContentLoaded", () => {
-  new Chart(document.getElementById('byStatut'), {
-    type: 'pie',
-    data: { labels: Object.keys(byStatut), datasets: [{ data: Object.values(byStatut) }] }
-  });
-  new Chart(document.getElementById('topThem'), {
-    type: 'bar',
-    data: { labels: topThem.map(x=>x[0]), datasets: [{ data: topThem.map(x=>x[1]) }] },
-    options: { plugins:{legend:{display:false}}, scales:{y:{beginAtZero:true}} }
-  });
-});
+// Enhanced Chart.js configuration and utilities
+Chart.register(ChartDataLabels);
+
+// Enhanced color palette with better accessibility
+const COLORS = {
+  primary: "#c40000",
+  primarySoft: "#f2b6b6", 
+  primaryMid: "#e05757",
+  palette3: ["#c40000", "#e05a5a", "#f2b6b6"],
+  palette8: ["#c40000", "#2b6cb0", "#ed8936", "#38a169", "#805ad5", "#718096", "#d53f8c", "#319795"],
+  success: "#38a169",
+  warning: "#ed8936",
+  error: "#e53e3e",
+  text: "#2d3748",
+  textLight: "#718096"
+};
+
+// Utility functions
+const Utils = {
+  formatNumber: (n) => n?.toLocaleString('fr-FR') || '0',
+  formatCurrency: (n) => `${Utils.formatNumber(n)} MAD`,
+  
+  formatPercent: (value, context) => {
+    const sum = context.dataset.data.reduce((a, b) => a + b, 0) || 1;
+    const percentage = Math.round(100 * value / sum);
+    return percentage >= 3 ? `${percentage}%` : "";
+  },
+  
+  showLoading: (chartId) => {
+    const loading = document.getElementById(`${chartId}-loading`);
+    const canvas = document.getElementById(chartId);
+    if (loading) loading.style.display = 'flex';
+    if (canvas) canvas.style.display = 'none';
+  },
+  
+  hideLoading: (chartId) => {
+    const loading = document.getElementById(`${chartId}-loading`);
+    const canvas = document.getElementById(chartId);
+    if (loading) loading.style.display = 'none';
+    if (canvas) canvas.style.display = 'block';
+  },
+  
+  showError: (chartId, message = "Erreur lors du chargement des données") => {
+    const loading = document.getElementById(`${chartId}-loading`);
+    if (loading) {
+      loading.className = 'chart-error';
+      loading.textContent = message;
+    }
+  }
+};
+
+// Default chart options for consistency
+const defaultChartOptions = {
+  responsive: true,
+  maintainAspectRatio: false,
+  interaction: {
+    intersect: false,
+    mode: 'index'
+  },
+  animation: {
+    duration: 1000,
+    easing: 'easeInOutQuart'
+  }
+};
+
+// Enhanced chart drawing functions
+async function drawPieBU() {
+  const chartId = 'pieBU';
+  try {
+    Utils.showLoading(chartId);
+    const response = await fetch("/analytics/api/by_bu");
+    
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`);
+    }
+    
+    const data = await response.json();
+    
+    if (!data.labels || !data.values) {
+      throw new Error("Format de données invalide");
+    }
+    
+    Utils.hideLoading(chartId);
+    
+    new Chart(document.getElementById(chartId), {
+      type: "pie",
+      data: {
+        labels: data.labels,
+        datasets: [{
+          data: data.values,
+          backgroundColor: COLORS.palette3,
+          borderWidth: 2,
+          borderColor: '#ffffff',
+          hoverBorderWidth: 3,
+          hoverOffset: 8
+        }]
+      },
+      options: {
+        ...defaultChartOptions,
+        plugins: {
+          legend: {
+            position: "bottom",
+            labels: {
+              padding: 20,
+              usePointStyle: true,
+              font: { size: 12, weight: '600' }
+            }
+          },
+          datalabels: {
+            color: "#ffffff",
+            font: { size: 14, weight: 'bold' },
+            formatter: Utils.formatPercent,
+            textShadowColor: 'rgba(0,0,0,0.3)',
+            textShadowBlur: 2
+          },
+          tooltip: {
+            callbacks: {
+              label: (context) => {
+                const label = context.label || '';
+                const value = Utils.formatNumber(context.raw);
+                const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                const percentage = ((context.raw / total) * 100).toFixed(1);
+                return `${label}: ${value} (${percentage}%)`;
+              }
+            }
+          }
+        }
+      }
+    });
+  } catch (error) {
+    console.error('Erreur lors du chargement du graphique BU:', error);
+    Utils.showError(chartId, "Impossible de charger les données BU");
+  }
+}
+
+async function drawBarAgents() {
+  const chartId = 'barAgents';
+  try {
+    Utils.showLoading(chartId);
+    const response = await fetch("/analytics/api/by_agent");
+    
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`);
+    }
+    
+    const data = await response.json();
+    Utils.hideLoading(chartId);
+    
+    new Chart(document.getElementById(chartId), {
+      type: "bar",
+      data: {
+        labels: data.labels?.map(s => s.toUpperCase()) || [],
+        datasets: [{
+          label: "Contacts",
+          data: data.values || [],
+          backgroundColor: COLORS.primary,
+          borderRadius: 6,
+          borderSkipped: false,
+          hoverBackgroundColor: COLORS.primaryMid
+        }]
+      },
+      options: {
+        ...defaultChartOptions,
+        scales: {
+          y: {
+            grid: { color: "#f0f0f0", drawBorder: false },
+            ticks: {
+              callback: (value) => value >= 1000 ? `${(value / 1000).toFixed(1)}k` : Utils.formatNumber(value),
+              font: { size: 11 }
+            }
+          },
+          x: {
+            grid: { display: false },
+            ticks: { font: { size: 11, weight: '600' } }
+          }
+        },
+        plugins: {
+          legend: { display: false },
+          datalabels: {
+            anchor: "end",
+            align: "end",
+            color: COLORS.primary,
+            font: { size: 11, weight: 'bold' },
+            formatter: (value, context) => {
+              const percentage = data.pct?.[context.dataIndex];
+              return percentage ? `${percentage.toFixed(1).replace(".", ",")}%` : "";
+            }
+          },
+          tooltip: {
+            callbacks: {
+              label: (context) => {
+                const value = Utils.formatNumber(context.raw);
+                const percentage = data.pct?.[context.dataIndex]?.toFixed(1) || '0';
+                return `Contacts: ${value} (${percentage}%)`;
+              }
+            }
+          }
+        }
+      }
+    });
+  } catch (error) {
+    console.error('Erreur lors du chargement du graphique agents:', error);
+    Utils.showError(chartId, "Impossible de charger les données agents");
+  }
+}
+
+async function drawDonutCanal() {
+  const chartId = 'donutCanal';
+  try {
+    Utils.showLoading(chartId);
+    const response = await fetch("/analytics/api/by_canal");
+    
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`);
+    }
+    
+    const data = await response.json();
+    Utils.hideLoading(chartId);
+    
+    new Chart(document.getElementById(chartId), {
+      type: "doughnut",
+      data: {
+        labels: data.labels || [],
+        datasets: [{
+          data: data.values || [],
+          backgroundColor: COLORS.palette8,
+          borderWidth: 3,
+          borderColor: '#ffffff',
+          hoverBorderWidth: 4,
+          hoverOffset: 6
+        }]
+      },
+      options: {
+        ...defaultChartOptions,
+        cutout: "60%",
+        plugins: {
+          legend: {
+            position: "bottom",
+            labels: {
+              padding: 20,
+              usePointStyle: true,
+              font: { size: 12, weight: '600' }
+            }
+          },
+          datalabels: {
+            color: "#ffffff",
+            font: { size: 12, weight: 'bold' },
+            formatter: Utils.formatPercent,
+            textShadowColor: 'rgba(0,0,0,0.3)',
+            textShadowBlur: 2
+          },
+          tooltip: {
+            callbacks: {
+              label: (context) => {
+                const label = context.label || '';
+                const value = Utils.formatNumber(context.raw);
+                const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                const percentage = ((context.raw / total) * 100).toFixed(1);
+                return `${label}: ${value} (${percentage}%)`;
+              }
+            }
+          }
+        }
+      }
+    });
+  } catch (error) {
+    console.error('Erreur lors du chargement du graphique canal:', error);
+    Utils.showError(chartId, "Impossible de charger les données canal");
+  }
+}
+
+async function drawBarThem() {
+  const chartId = 'barThem';
+  try {
+    Utils.showLoading(chartId);
+    const response = await fetch("/analytics/api/by_thematique");
+    
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`);
+    }
+    
+    const data = await response.json();
+    Utils.hideLoading(chartId);
+    
+    new Chart(document.getElementById(chartId), {
+      type: "bar",
+      data: {
+        labels: data.labels || [],
+        datasets: [{
+          data: data.values || [],
+          backgroundColor: COLORS.primary,
+          borderRadius: 6,
+          borderSkipped: false,
+          hoverBackgroundColor: COLORS.primaryMid
+        }]
+      },
+      options: {
+        ...defaultChartOptions,
+        scales: {
+          y: {
+            grid: { color: "#f0f0f0", drawBorder: false },
+            ticks: {
+              callback: (value) => value >= 1000 ? `${(value / 1000).toFixed(1)}k` : Utils.formatNumber(value),
+              font: { size: 11 }
+            }
+          },
+          x: {
+            grid: { display: false },
+            ticks: {
+              maxRotation: 45,
+              minRotation: 0,
+              font: { size: 10, weight: '600' }
+            }
+          }
+        },
+        plugins: {
+          legend: { display: false },
+          datalabels: {
+            anchor: "end",
+            align: "end",
+            color: "#2b6cb0",
+            font: { size: 11, weight: 'bold' },
+            formatter: (value, context) => {
+              const percentage = data.pct?.[context.dataIndex];
+              return percentage ? `${percentage.toFixed(1).replace(".", ",")}%` : "";
+            }
+          },
+          tooltip: {
+            callbacks: {
+              label: (context) => {
+                const value = Utils.formatNumber(context.raw);
+                const percentage = data.pct?.[context.dataIndex]?.toFixed(1) || '0';
+                return `Contacts: ${value} (${percentage}%)`;
+              }
+            }
+          }
+        }
+      }
+    });
+  } catch (error) {
+    console.error('Erreur lors du chargement du graphique thématiques:', error);
+    Utils.showError(chartId, "Impossible de charger les données thématiques");
+  }
+}
+
+async function fillActions() {
+  try {
+    const response = await fetch("/analytics/api/actions_amount");
+    
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`);
+    }
+    
+    const data = await response.json();
+    const tbody = document.getElementById("actionsBody");
+    
+    if (!tbody) return;
+    
+    tbody.innerHTML = "";
+    
+    const rows = data.rows || [];
+    
+    if (rows.length === 0) {
+      const tr = document.createElement("tr");
+      tr.innerHTML = '<td colspan="2" class="text-center py-4 text-muted">Aucune donnée disponible</td>';
+      tbody.appendChild(tr);
+      return;
+    }
+    
+    rows.forEach((row, index) => {
+      const tr = document.createElement("tr");
+      tr.style.animationDelay = `${index * 0.1}s`;
+      
+      const actionCell = document.createElement("td");
+      actionCell.textContent = row.Action || "AUTRES";
+      actionCell.style.fontWeight = index < 3 ? '600' : '500';
+      
+      const amountCell = document.createElement("td");
+      amountCell.className = "text-end";
+      amountCell.textContent = Utils.formatCurrency(row.amount || 0);
+      
+      // Enhanced styling for top performers
+      if (index === 0) {
+        amountCell.style.background = COLORS.primary;
+        amountCell.style.color = "#ffffff";
+        amountCell.style.fontWeight = "700";
+        amountCell.style.borderRadius = "6px";
+      } else if (index <= 2) {
+        amountCell.style.background = COLORS.primarySoft;
+        amountCell.style.fontWeight = "600";
+        amountCell.style.borderRadius = "6px";
+      }
+      
+      tr.appendChild(actionCell);
+      tr.appendChild(amountCell);
+      tbody.appendChild(tr);
+    });
+    
+    // Update total
+    const totalElement = document.getElementById("actionsTotal");
+    if (totalElement) {
+      totalElement.textContent = Utils.formatCurrency(data.total || 0);
+    }
+    
+  } catch (error) {
+    console.error('Erreur lors du chargement du tableau actions:', error);
+    const tbody = document.getElementById("actionsBody");
+    if (tbody) {
+      tbody.innerHTML = '<tr><td colspan="2" class="text-center py-4 text-danger">⚠️ Erreur lors du chargement des données</td></tr>';
+    }
+  }
+}
+
+// Initialize dashboard with proper error handling and loading states
+async function initializeDashboard() {
+  const promises = [
+    drawPieBU(),
+    drawBarAgents(),
+    drawDonutCanal(),
+    drawBarThem(),
+    fillActions()
+  ];
+  
+  try {
+    await Promise.allSettled(promises);
+    console.log('Dashboard initialisé avec succès');
+  } catch (error) {
+    console.error('Erreur lors de l\'initialisation du dashboard:', error);
+  }
+}
+
+// Initialize dashboard when DOM is ready
+document.addEventListener('DOMContentLoaded', initializeDashboard);
+
+// Auto-refresh functionality (optional)
+// setInterval(initializeDashboard, 300000); // Refresh every 5 minutes
 </script>
 {% endblock %}

@@ -7,4 +7,4 @@ class Config:
     MONGO_URI  = os.environ.get("MONGO_URI")
     MONGO_DBNAME = os.environ.get("MONGO_DB", "ticketing_db")
     WTF_CSRF_TIME_LIMIT = None
-    
+    ADMIN_SECRET = os.environ.get("ADMIN_SECRET")
