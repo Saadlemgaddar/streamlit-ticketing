@@ -605,6 +605,21 @@ async function loadFilterOptions() {
   }
 }
 
+async function updateTotalCounter() {
+  const queryString = buildQueryString();
+  try {
+    const res = await fetch(`/analytics/api/total?${queryString}`);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    const totalEl = document.getElementById('total-tickets-count');
+    totalEl.textContent = Utils.formatNumber(data.total || 0);
+  } catch (e) {
+    console.error('Erreur total:', e);
+    document.getElementById('total-tickets-count').textContent = '-';
+  }
+}
+
+
 function populateFilterDropdowns() {
   // Populate agents
   const agentSelect = document.getElementById('filter-agent');
@@ -854,11 +869,6 @@ async function drawBarAgents() {
     }
     
     const data = await response.json();
-
-    const totalEl = document.getElementById('total-tickets-count');
-    if (totalEl && typeof data.total === 'number') {
-      totalEl.textContent = Utils.formatNumber(data.total);
-    }
 
     Utils.hideLoading(chartId);
     
@@ -1144,6 +1154,9 @@ async function loadActionsTable() {
 
 // Main functions to refresh all data
 function refreshAllCharts() {
+  // refresh the true total first
+  updateTotalCounter();
+
   Promise.all([
     drawPieBU(),
     drawBarAgents(),

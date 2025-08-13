@@ -345,9 +345,10 @@ def by_bu():
 @analytics_bp.get("/api/by_agent")
 def by_agent():
     db = _db()
-    
-    # Get filters from query parameters
+
+    # ⬇️ add "agent" here
     filters = {
+        "agent": request.args.get("agent"),
         "canal": request.args.get("canal"),
         "thematique": request.args.get("thematique"),
         "action": request.args.get("action"),
@@ -358,18 +359,15 @@ def by_agent():
         "date_from": request.args.get("date_from"),
         "date_to": request.args.get("date_to")
     }
-    
-    # Remove None values
     filters = {k: v for k, v in filters.items() if v is not None and v != ""}
-    
+
     pipeline = []
-    
-    # Add filter stage if filters exist
+
     match_stage = build_filter_match_stage(filters)
     if match_stage:
         pipeline.append({"$match": match_stage})
-    
-    # Handle BU filter (requires lookup for magasin-based BU)
+
+    # BU lookup (unchanged)...
     if filters.get("bu"):
         pipeline.extend([
             {"$addFields": {
@@ -401,15 +399,14 @@ def by_agent():
                 "bu_final": {"$regex": f"^{filters['bu']}$", "$options": "i"}
             }}
         ])
-    
-    # Complete the aggregation
+
     pipeline.extend([
         {"$addFields": {"agent_norm": {"$toUpper": {"$trim": {"input": {"$ifNull": ["$agent", "AUTRES"]}}}}}},
         {"$group": {"_id": "$agent_norm", "n": {"$sum": 1}}},
         {"$sort": {"n": -1}},
         {"$limit": 10}
     ])
-    
+
     rows = list(db[TICKETS].aggregate(pipeline))
     total = sum(r["n"] for r in rows) or 1
     return jsonify({
