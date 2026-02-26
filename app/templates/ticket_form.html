@@ -36,11 +36,13 @@
   <div class="row g-2 mt-1">
     <div class="col-md-6">
       <label class="form-label">Nom et Prénom client *</label>
-      <input name="nom_prenom" class="form-control" placeholder="Ex: Dupont Jean" value="{{ vals.get('nom_prenom','') }}" required>
+      <input name="nom_prenom" class="form-control" placeholder="Ex: Dupont Jean" value="{{ vals.get('nom_prenom','') }}" list="clientNamesList" autocomplete="off" required>
+      <datalist id="clientNamesList"></datalist>
     </div>
     <div class="col-md-3">
       <label class="form-label">ID Client</label>
-      <input name="id_client" class="form-control" placeholder="CLI12345" value="{{ vals.get('id_client','') }}">
+      <input name="id_client" class="form-control" placeholder="CLI12345" value="{{ vals.get('id_client','') }}" list="clientIdsList" autocomplete="off">
+      <datalist id="clientIdsList"></datalist>
     </div>
     <div class="col-md-3">
       <label class="form-label">Numéro commande</label>
@@ -57,6 +59,7 @@
           <option value="{{c}}" {{ 'selected' if vals.get('canal','')==c else '' }}>{{ c }}</option>
         {% endfor %}
       </select>
+      <div class="form-text mt-1" id="canalHint" style="display:none;"></div>
     </div>
   </div>
 
@@ -189,6 +192,7 @@
 <script>
 const CSRF_TOKEN = "{{ csrf_token() }}";
 const initialMagasin = "{{ vals.get('magasin','') }}";
+const CLIENT_LOOKUP_URL = "{{ url_for('tickets.api_client_names') }}";
 
 function escapeHtml(s){return String(s).replace(/[&<>"']/g,m=>({ "&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;" }[m]));}
 function money(v){ const n = Number(v||0); return n.toLocaleString('fr-FR',{minimumFractionDigits:2, maximumFractionDigits:2}) + ' MAD'; }
@@ -216,6 +220,221 @@ function updateTotal(){
   if(el) el.addEventListener('input', updateTotal);
 });
 updateTotal();
+
+// ====== Client / ID suggestions (async) ======
+const clientInput = document.querySelector('input[name="nom_prenom"]');
+const clientDatalist = document.getElementById('clientNamesList');
+const idClientInput = document.querySelector('input[name="id_client"]');
+const idClientDatalist = document.getElementById('clientIdsList');
+const canalSelect = document.getElementById('canalSel');
+const canalHint = document.getElementById('canalHint');
+
+const clientByName = new Map();
+const clientById = new Map();
+
+let nameSuggestTimer = null;
+let idSuggestTimer = null;
+let lastNameQuery = '';
+let lastIdQuery = '';
+let nameAbortCtrl = null;
+let idAbortCtrl = null;
+
+if (clientInput && clientDatalist) {
+  clientInput.addEventListener('input', () => {
+    const term = clientInput.value.trim();
+    clearTimeout(nameSuggestTimer);
+    if (term.length < 2) {
+      clientDatalist.innerHTML = '';
+      lastNameQuery = '';
+      if (nameAbortCtrl) nameAbortCtrl.abort();
+      renderCanalHint([]);
+      return;
+    }
+    nameSuggestTimer = setTimeout(() => fetchClientsByName(term), 250);
+  });
+  clientInput.addEventListener('change', tryApplyClientFromName);
+  clientInput.addEventListener('blur', () => setTimeout(tryApplyClientFromName, 50));
+  if (clientInput.value.trim().length >= 2) {
+    fetchClientsByName(clientInput.value.trim());
+  }
+}
+
+if (idClientInput && idClientDatalist) {
+  idClientInput.addEventListener('input', () => {
+    const term = idClientInput.value.trim();
+    clearTimeout(idSuggestTimer);
+    if (term.length < 2) {
+      idClientDatalist.innerHTML = '';
+      lastIdQuery = '';
+      if (idAbortCtrl) idAbortCtrl.abort();
+      return;
+    }
+    idSuggestTimer = setTimeout(() => fetchClientsById(term), 250);
+  });
+  idClientInput.addEventListener('change', () => tryApplyClientFromId(true));
+  idClientInput.addEventListener('blur', () => setTimeout(() => tryApplyClientFromId(true), 50));
+  if (idClientInput.value.trim().length >= 2) {
+    fetchClientsById(idClientInput.value.trim());
+  }
+}
+
+async function fetchClientsByName(term){
+  lastNameQuery = term;
+  if (nameAbortCtrl) nameAbortCtrl.abort();
+  nameAbortCtrl = new AbortController();
+  try {
+    const res = await fetch(`${CLIENT_LOOKUP_URL}?term=${encodeURIComponent(term)}`, {
+      headers:{'X-CSRFToken':CSRF_TOKEN},
+      signal: nameAbortCtrl.signal
+    });
+    if (!res.ok) return;
+    const entries = await res.json();
+    if (term !== lastNameQuery) return;
+    storeClientSuggestions(entries || []);
+    clientDatalist.innerHTML = (entries||[])
+      .map(entry => `<option value="${escapeHtml(entry.nom_prenom || '')}"></option>`)
+      .join('');
+    tryApplyClientFromName();
+  } catch(err){
+    if (err.name !== 'AbortError') {
+      console.error('client lookup failed', err);
+    }
+  }
+}
+
+async function fetchClientsById(term){
+  lastIdQuery = term;
+  if (idAbortCtrl) idAbortCtrl.abort();
+  idAbortCtrl = new AbortController();
+  try {
+    const res = await fetch(`${CLIENT_LOOKUP_URL}?id=${encodeURIComponent(term)}`, {
+      headers:{'X-CSRFToken':CSRF_TOKEN},
+      signal: idAbortCtrl.signal
+    });
+    if (!res.ok) return;
+    const entries = await res.json();
+    if (term !== lastIdQuery) return;
+    storeClientSuggestions(entries || []);
+    idClientDatalist.innerHTML = (entries||[])
+      .map(entry => `<option value="${escapeHtml(entry.id_client || '')}"></option>`)
+      .join('');
+    tryApplyClientFromId(true);
+  } catch(err){
+    if (err.name !== 'AbortError') {
+      console.error('client lookup failed', err);
+    }
+  }
+}
+
+function storeClientSuggestions(entries){
+  (entries || []).forEach(entry => {
+    const nameRaw = String(entry.nom_prenom || '').trim();
+    const idRaw = String(entry.id_client || '').trim();
+    const canalsArray = Array.isArray(entry.canals) ? entry.canals.map(v => String(v || '').trim()).filter(Boolean) : [];
+    const uniqCanals = [];
+    const seenCanals = new Set();
+    canalsArray.forEach(val => {
+      const key = val.toLowerCase();
+      if (!key || seenCanals.has(key)) return;
+      seenCanals.add(key);
+      uniqCanals.push(val);
+    });
+    const dataObj = {
+      nom_prenom: nameRaw,
+      id_client: idRaw,
+      canals: uniqCanals
+    };
+    if (nameRaw){
+      clientByName.set(nameRaw.toLowerCase(), dataObj);
+    }
+    if (idRaw){
+      clientById.set(idRaw.toLowerCase(), dataObj);
+    }
+  });
+}
+
+function tryApplyClientFromName(){
+  if (!clientInput) return;
+  const key = clientInput.value.trim().toLowerCase();
+  if (!key) return;
+  const data = clientByName.get(key);
+  if (!data){
+    renderCanalHint([]);
+    return;
+  }
+  applyClientData(data);
+}
+
+function tryApplyClientFromId(forceName=false){
+  if (!idClientInput) return;
+  const key = idClientInput.value.trim().toLowerCase();
+  if (!key) return;
+  const data = clientById.get(key);
+  if (!data){
+    if (forceName) renderCanalHint([]);
+    return;
+  }
+  applyClientData(data, {forceName});
+}
+
+function applyClientData(data, opts = {}){
+  if (!data){
+    renderCanalHint([]);
+    return;
+  }
+  if (idClientInput && data.id_client){
+    idClientInput.value = data.id_client;
+  }
+  if (clientInput && data.nom_prenom && (opts.forceName || !clientInput.value.trim())){
+    clientInput.value = data.nom_prenom;
+  }
+  if (Array.isArray(data.canals) && data.canals.length){
+    renderCanalHint(data.canals);
+    if (data.canals.length === 1){
+      selectCanalValue(data.canals[0]);
+    }
+  } else {
+    renderCanalHint([]);
+  }
+}
+
+function renderCanalHint(canals){
+  if (!canalHint) return;
+  const cleaned = (canals || []).map(v => String(v || '').trim()).filter(Boolean);
+  const unique = [];
+  const seen = new Set();
+  cleaned.forEach(val => {
+    const key = val.toLowerCase();
+    if (!key || seen.has(key)) return;
+    seen.add(key);
+    unique.push(val);
+  });
+  if (!unique.length){
+    canalHint.style.display = 'none';
+    canalHint.innerHTML = '';
+    return;
+  }
+  canalHint.style.display = 'block';
+  const pills = unique.map(canal => `<button type="button" class="btn btn-sm btn-outline-secondary me-1" data-canal="${escapeHtml(canal)}">${escapeHtml(canal)}</button>`).join('');
+  canalHint.innerHTML = `<span class="text-muted me-1">Canaux historiques :</span>${pills}`;
+}
+
+function selectCanalValue(val){
+  if (!canalSelect || !val) return;
+  const desired = String(val).toLowerCase();
+  const match = Array.from(canalSelect.options).find(opt => opt.value.toLowerCase() === desired);
+  if (match){
+    canalSelect.value = match.value;
+  }
+}
+
+if (canalHint){
+  canalHint.addEventListener('click', (evt) => {
+    const btn = evt.target.closest('button[data-canal]');
+    if (!btn) return;
+    selectCanalValue(btn.getAttribute('data-canal'));
+  });
+}
 
 // ====== Étape 1 : Magasins ======
 let magasinsData = [];
