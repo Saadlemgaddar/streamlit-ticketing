@@ -206,6 +206,7 @@ def api_magasins():
 def api_client_names():
     term = (request.args.get("term") or "").strip()
     id_term = (request.args.get("id") or "").strip()
+    cmd_term = (request.args.get("cmd") or "").strip()
     search_field = None
     search_value = None
     if len(term) >= 2:
@@ -214,6 +215,9 @@ def api_client_names():
     elif len(id_term) >= 2:
         search_field = "id_client"
         search_value = id_term
+    elif len(cmd_term) >= 2:
+        search_field = "num_cmd"
+        search_value = cmd_term
     else:
         return jsonify([])
     try:
@@ -223,7 +227,7 @@ def api_client_names():
     limit = max(1, min(limit, 25))
     regex = {"$regex": re.escape(search_value), "$options": "i"}
     cursor = (coll("tickets")
-              .find({search_field: regex}, {"_id": 0, "nom_prenom": 1, "id_client": 1, "canal": 1, "date_creation": 1})
+              .find({search_field: regex}, {"_id": 0, "nom_prenom": 1, "id_client": 1, "num_cmd": 1, "canal": 1, "date_creation": 1})
               .sort([(search_field, 1), ("date_creation", -1)])
               .limit(limit * 8))
     aggregated = {}
@@ -232,11 +236,13 @@ def api_client_names():
         if not key_raw:
             continue
         key = key_raw.casefold()
+        num_val = str(row.get("num_cmd") or "").strip()
         entry = aggregated.get(key)
         if not entry:
             entry = {
                 "nom_prenom": str(row.get("nom_prenom") or "").strip(),
                 "id_client": str(row.get("id_client") or "").strip(),
+                "num_cmd": num_val,
                 "canals": set(),
                 "_sort": key_raw.casefold()
             }
@@ -245,6 +251,10 @@ def api_client_names():
             entry["nom_prenom"] = str(row.get("nom_prenom") or "").strip()
         if not entry["id_client"]:
             entry["id_client"] = str(row.get("id_client") or "").strip()
+        if num_val and not entry["num_cmd"]:
+            entry["num_cmd"] = num_val
+        if search_field == "num_cmd" and not entry["num_cmd"]:
+            entry["num_cmd"] = key_raw
         canal_val = str(row.get("canal") or "").strip()
         if canal_val:
             entry["canals"].add(canal_val)
@@ -255,6 +265,7 @@ def api_client_names():
         results.append({
             "nom_prenom": entry["nom_prenom"],
             "id_client": entry["id_client"],
+            "num_cmd": entry.get("num_cmd", ""),
             "canals": canals_sorted
         })
         if len(results) >= limit:

@@ -242,6 +242,94 @@ textarea.form-control {
   min-height: 100px;
 }
 
+/* Styled dropdowns for datalist-powered inputs */
+.datalist-control {
+  position: relative;
+}
+
+.datalist-control::after {
+  content: '\25be';
+  position: absolute;
+  right: 1rem;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #94a3b8;
+  font-size: 0.85rem;
+  pointer-events: none;
+}
+
+.datalist-control input[list] {
+  padding-right: 2.5rem;
+}
+
+.datalist-panel {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: calc(100% + 0.25rem);
+  background: #ffffff;
+  border: 2px solid #e2e8f0;
+  border-radius: var(--border-radius-sm);
+  box-shadow: 0 20px 40px rgba(15, 23, 42, 0.18);
+  max-height: 16rem;
+  overflow-y: auto;
+  z-index: 40;
+  display: none;
+}
+
+.datalist-panel.show {
+  display: block;
+}
+
+.datalist-option {
+  width: 100%;
+  border: none;
+  background: transparent;
+  padding: 0.65rem 0.9rem;
+  text-align: left;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  font-size: 0.93rem;
+  color: #0f172a;
+  cursor: pointer;
+}
+
+.datalist-option:hover,
+.datalist-option:focus {
+  background: rgba(102, 126, 234, 0.08);
+}
+
+.datalist-option-main {
+  font-weight: 600;
+  color: #1e293b;
+}
+
+.datalist-option-sub {
+  font-size: 0.82rem;
+  color: #475569;
+}
+
+.datalist-option-meta {
+  font-size: 0.75rem;
+  color: #6366f1;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.datalist-panel::-webkit-scrollbar {
+  width: 6px;
+}
+
+.datalist-panel::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.datalist-panel::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.6);
+  border-radius: 999px;
+}
+
 /* ===== ALERTS ===== */
 .alert {
   border: none;
