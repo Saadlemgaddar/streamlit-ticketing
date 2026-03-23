@@ -173,8 +173,13 @@
 
 <div class="mt-3 d-flex gap-2">
   <a href="{{ url_for('tickets.list_tickets') }}" class="btn btn-light">Annuler</a>
-  <button id="submitBtn" class="btn btn-primary">
-    {{ '🎫 Créer le ticket' if mode=='create' else '💾 Enregistrer les modifications' }}
+  <button id="submitBtn" type="submit" class="btn btn-primary">
+    <span id="btnText">
+      {{ '🎫 Créer le ticket' if mode=='create' else '💾 Enregistrer les modifications' }}
+    </span>
+    <span id="btnLoading" style="display:none;">
+      ⏳ Traitement...
+    </span>
   </button>
 
   {% if mode == 'edit' and vals.get('statut','Ouvert')|lower in ['ouvert','open'] %}
