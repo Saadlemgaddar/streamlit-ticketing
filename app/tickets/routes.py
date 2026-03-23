@@ -4,7 +4,17 @@ from ..extensions import mongo
 from datetime import datetime
 import io
 import pandas as pd
+import hashlib
 from pymongo import ReturnDocument
+
+
+import hashlib
+
+def generate_hash(data):
+    base = f"{data.get('nom_prenom','')}_{data.get('num_cmd','')}_{data.get('agent','')}"
+    return hashlib.md5(base.encode()).hexdigest()
+
+
 
 tickets_bp = Blueprint("tickets", __name__, template_folder="../templates")
 
@@ -70,13 +80,19 @@ def ensure_ticket_sequence():
     """
     Ensure:
       - unique index exists on tickets.id
+      - unique index on tickets.unique_hash
       - counters.tickets exists
       - counters.tickets.seq >= max numeric id in tickets
-    Safe to call often.
     """
-    # unique index (idempotent)
+    # unique index id
     try:
         coll("tickets").create_index("id", unique=True)
+    except Exception:
+        pass
+
+    # unique index anti-duplicate
+    try:
+        coll("tickets").create_index("unique_hash", unique=True)
     except Exception:
         pass
 
@@ -415,8 +431,15 @@ def create_ticket():
             'dr': f.get("dr","").strip(),
             'dm': f.get("dm","").strip(),
         }
-        coll("tickets").insert_one(doc)
-        flash(f"✅ Ticket {next_id} créé avec succès !", "success")
+        # 🔐 Ajout hash anti-duplication
+        doc["unique_hash"] = generate_hash(doc)
+
+        try:
+            coll("tickets").insert_one(doc)
+            flash(f"✅ Ticket {next_id} créé avec succès !", "success")
+        except Exception:
+            flash("⚠️ Ticket déjà soumis (double clic détecté)", "warning")
+
         return redirect(url_for("tickets.list_tickets"))
 
     return render_template("ticket_form.html", mode="create", vals={}, canaux=canaux, now=datetime.now())
