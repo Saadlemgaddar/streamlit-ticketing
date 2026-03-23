@@ -3,6 +3,7 @@ from flask import Blueprint, current_app, render_template, request, redirect, ur
 from ..extensions import mongo
 from datetime import datetime
 import io
+import re
 import pandas as pd
 import hashlib
 from pymongo import ReturnDocument
@@ -216,6 +217,76 @@ def api_magasins():
     data = [x for x in data if x["label"]]
     data.sort(key=lambda x: x["label"])
     return jsonify(data)
+
+@tickets_bp.get("/api/clients/search")
+def api_client_names():
+    term = (request.args.get("term") or "").strip()
+    id_term = (request.args.get("id") or "").strip()
+    cmd_term = (request.args.get("cmd") or "").strip()
+    search_field = None
+    search_value = None
+    if len(term) >= 2:
+        search_field = "nom_prenom"
+        search_value = term
+    elif len(id_term) >= 2:
+        search_field = "id_client"
+        search_value = id_term
+    elif len(cmd_term) >= 2:
+        search_field = "num_cmd"
+        search_value = cmd_term
+    else:
+        return jsonify([])
+    try:
+        limit = int(request.args.get("limit", 20))
+    except (TypeError, ValueError):
+        limit = 20
+    limit = max(1, min(limit, 25))
+    regex = {"$regex": re.escape(search_value), "$options": "i"}
+    cursor = (coll("tickets")
+              .find({search_field: regex}, {"_id": 0, "nom_prenom": 1, "id_client": 1, "num_cmd": 1, "canal": 1, "date_creation": 1})
+              .sort([(search_field, 1), ("date_creation", -1)])
+              .limit(limit * 8))
+    aggregated = {}
+    for row in cursor:
+        key_raw = str(row.get(search_field) or "").strip()
+        if not key_raw:
+            continue
+        key = key_raw.casefold()
+        num_val = str(row.get("num_cmd") or "").strip()
+        entry = aggregated.get(key)
+        if not entry:
+            entry = {
+                "nom_prenom": str(row.get("nom_prenom") or "").strip(),
+                "id_client": str(row.get("id_client") or "").strip(),
+                "num_cmd": num_val,
+                "canals": set(),
+                "_sort": key_raw.casefold()
+            }
+            aggregated[key] = entry
+        if not entry["nom_prenom"]:
+            entry["nom_prenom"] = str(row.get("nom_prenom") or "").strip()
+        if not entry["id_client"]:
+            entry["id_client"] = str(row.get("id_client") or "").strip()
+        if num_val and not entry["num_cmd"]:
+            entry["num_cmd"] = num_val
+        if search_field == "num_cmd" and not entry["num_cmd"]:
+            entry["num_cmd"] = key_raw
+        canal_val = str(row.get("canal") or "").strip()
+        if canal_val:
+            entry["canals"].add(canal_val)
+    sorted_entries = sorted(aggregated.values(), key=lambda e: e.get("_sort", ""))
+    results = []
+    for entry in sorted_entries:
+        canals_sorted = sorted(entry["canals"], key=lambda v: v.casefold())
+        results.append({
+            "nom_prenom": entry["nom_prenom"],
+            "id_client": entry["id_client"],
+            "num_cmd": entry.get("num_cmd", ""),
+            "canals": canals_sorted
+        })
+        if len(results) >= limit:
+            break
+    return jsonify(results)
 
 @tickets_bp.get("/api/thematiques")
 def api_thematiques_root():

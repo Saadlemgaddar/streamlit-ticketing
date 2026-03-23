@@ -35,16 +35,28 @@
 
   <div class="row g-2 mt-1">
     <div class="col-md-6">
-      <label class="form-label">Nom et Prénom client *</label>
-      <input name="nom_prenom" class="form-control" placeholder="Ex: Dupont Jean" value="{{ vals.get('nom_prenom','') }}" required>
+      <label class="form-label" for="clientNameInput">Nom et Prénom client *</label>
+      <div class="datalist-control">
+        <input id="clientNameInput" name="nom_prenom" class="form-control" placeholder="Ex: Dupont Jean" value="{{ vals.get('nom_prenom','') }}" list="clientNamesList" autocomplete="off" aria-controls="clientNamePanel" aria-expanded="false" required>
+        <datalist id="clientNamesList"></datalist>
+        <div class="datalist-panel" id="clientNamePanel" role="listbox" aria-label="Suggestions clients"></div>
+      </div>
     </div>
     <div class="col-md-3">
-      <label class="form-label">ID Client</label>
-      <input name="id_client" class="form-control" placeholder="CLI12345" value="{{ vals.get('id_client','') }}">
+      <label class="form-label" for="clientIdInput">ID Client</label>
+      <div class="datalist-control">
+        <input id="clientIdInput" name="id_client" class="form-control" placeholder="CLI12345" value="{{ vals.get('id_client','') }}" list="clientIdsList" autocomplete="off" aria-controls="clientIdPanel" aria-expanded="false">
+        <datalist id="clientIdsList"></datalist>
+        <div class="datalist-panel" id="clientIdPanel" role="listbox" aria-label="Suggestions ID client"></div>
+      </div>
     </div>
     <div class="col-md-3">
-      <label class="form-label">Numéro commande</label>
-      <input name="num_cmd" class="form-control" placeholder="CMD67890" value="{{ vals.get('num_cmd','') }}">
+      <label class="form-label" for="orderNumInput">Numéro commande</label>
+      <div class="datalist-control">
+        <input id="orderNumInput" name="num_cmd" class="form-control" placeholder="CMD67890" value="{{ vals.get('num_cmd','') }}" list="orderNumsList" autocomplete="off" aria-controls="orderNumPanel" aria-expanded="false">
+        <datalist id="orderNumsList"></datalist>
+        <div class="datalist-panel" id="orderNumPanel" role="listbox" aria-label="Suggestions numéros de commande"></div>
+      </div>
     </div>
   </div>
 
@@ -57,6 +69,7 @@
           <option value="{{c}}" {{ 'selected' if vals.get('canal','')==c else '' }}>{{ c }}</option>
         {% endfor %}
       </select>
+      <div class="form-text mt-1" id="canalHint" style="display:none;"></div>
     </div>
   </div>
 
@@ -194,6 +207,7 @@
 <script>
 const CSRF_TOKEN = "{{ csrf_token() }}";
 const initialMagasin = "{{ vals.get('magasin','') }}";
+const CLIENT_LOOKUP_URL = "{{ url_for('tickets.api_client_names') }}";
 
 function escapeHtml(s){return String(s).replace(/[&<>"']/g,m=>({ "&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;" }[m]));}
 function money(v){ const n = Number(v||0); return n.toLocaleString('fr-FR',{minimumFractionDigits:2, maximumFractionDigits:2}) + ' MAD'; }
@@ -221,6 +235,509 @@ function updateTotal(){
   if(el) el.addEventListener('input', updateTotal);
 });
 updateTotal();
+
+// ====== Client / ID suggestions (async) ======
+const clientInput = document.querySelector('input[name="nom_prenom"]');
+const clientDatalist = document.getElementById('clientNamesList');
+const idClientInput = document.querySelector('input[name="id_client"]');
+const idClientDatalist = document.getElementById('clientIdsList');
+const orderInput = document.querySelector('input[name="num_cmd"]');
+const orderDatalist = document.getElementById('orderNumsList');
+const canalSelect = document.getElementById('canalSel');
+const canalHint = document.getElementById('canalHint');
+const clientNamePanel = document.getElementById('clientNamePanel');
+const clientIdPanel = document.getElementById('clientIdPanel');
+const orderNumPanel = document.getElementById('orderNumPanel');
+const nameControl = clientInput ? clientInput.closest('.datalist-control') : null;
+const idControl = idClientInput ? idClientInput.closest('.datalist-control') : null;
+const orderControl = orderInput ? orderInput.closest('.datalist-control') : null;
+
+const clientByName = new Map();
+const clientById = new Map();
+const clientByOrder = new Map();
+
+let nameSuggestTimer = null;
+let idSuggestTimer = null;
+let orderSuggestTimer = null;
+let lastNameQuery = '';
+let lastIdQuery = '';
+let lastOrderQuery = '';
+let nameAbortCtrl = null;
+let idAbortCtrl = null;
+let orderAbortCtrl = null;
+let lastNameResults = [];
+let lastIdResults = [];
+let lastOrderResults = [];
+
+if (clientInput && clientDatalist) {
+  clientInput.removeAttribute('list');
+  clientInput.addEventListener('input', () => {
+    const term = clientInput.value.trim();
+    clearTimeout(nameSuggestTimer);
+    if (term.length < 2) {
+      clientDatalist.innerHTML = '';
+      lastNameQuery = '';
+      if (nameAbortCtrl) nameAbortCtrl.abort();
+      lastNameResults = [];
+      closeDropdown(clientNamePanel, clientInput);
+      renderCanalHint([]);
+      return;
+    }
+    nameSuggestTimer = setTimeout(() => fetchClientsByName(term), 250);
+  });
+  clientInput.addEventListener('change', tryApplyClientFromName);
+  clientInput.addEventListener('blur', () => setTimeout(tryApplyClientFromName, 50));
+  if (clientInput.value.trim().length >= 2) {
+    fetchClientsByName(clientInput.value.trim());
+  }
+}
+
+if (idClientInput && idClientDatalist) {
+  idClientInput.removeAttribute('list');
+  idClientInput.addEventListener('input', () => {
+    const term = idClientInput.value.trim();
+    clearTimeout(idSuggestTimer);
+    if (term.length < 2) {
+      idClientDatalist.innerHTML = '';
+      lastIdQuery = '';
+      if (idAbortCtrl) idAbortCtrl.abort();
+      lastIdResults = [];
+      closeDropdown(clientIdPanel, idClientInput);
+      return;
+    }
+    idSuggestTimer = setTimeout(() => fetchClientsById(term), 250);
+  });
+  idClientInput.addEventListener('change', () => tryApplyClientFromId(true));
+  idClientInput.addEventListener('blur', () => setTimeout(() => tryApplyClientFromId(true), 50));
+  if (idClientInput.value.trim().length >= 2) {
+    fetchClientsById(idClientInput.value.trim());
+  }
+}
+
+if (orderInput && orderDatalist) {
+  orderInput.removeAttribute('list');
+  orderInput.addEventListener('input', () => {
+    const term = orderInput.value.trim();
+    clearTimeout(orderSuggestTimer);
+    if (term.length < 2) {
+      orderDatalist.innerHTML = '';
+      lastOrderQuery = '';
+      if (orderAbortCtrl) orderAbortCtrl.abort();
+      lastOrderResults = [];
+      closeDropdown(orderNumPanel, orderInput);
+      return;
+    }
+    orderSuggestTimer = setTimeout(() => fetchClientsByOrder(term), 250);
+  });
+  orderInput.addEventListener('change', () => tryApplyClientFromOrder(true));
+  orderInput.addEventListener('blur', () => setTimeout(() => tryApplyClientFromOrder(true), 50));
+  if (orderInput.value.trim().length >= 2) {
+    fetchClientsByOrder(orderInput.value.trim());
+  }
+}
+
+setupDropdownInput(clientInput, clientNamePanel, () => {
+  if (lastNameResults.length) {
+    renderNameDropdown(lastNameResults);
+  }
+});
+setupDropdownInput(idClientInput, clientIdPanel, () => {
+  if (lastIdResults.length) {
+    renderIdDropdown(lastIdResults);
+  }
+});
+setupDropdownInput(orderInput, orderNumPanel, () => {
+  if (lastOrderResults.length) {
+    renderOrderDropdown(lastOrderResults);
+  }
+});
+
+attachDropdownHandler(clientNamePanel, clientInput, (value) => {
+  if (!clientInput) return;
+  clientInput.value = value;
+  clientInput.dispatchEvent(new Event('input', {bubbles: true}));
+  tryApplyClientFromName();
+});
+
+attachDropdownHandler(clientIdPanel, idClientInput, (value) => {
+  if (!idClientInput) return;
+  idClientInput.value = value;
+  idClientInput.dispatchEvent(new Event('input', {bubbles: true}));
+  tryApplyClientFromId(true);
+});
+attachDropdownHandler(orderNumPanel, orderInput, (value) => {
+  if (!orderInput) return;
+  orderInput.value = value;
+  orderInput.dispatchEvent(new Event('input', {bubbles: true}));
+  tryApplyClientFromOrder(true);
+});
+
+document.addEventListener('click', (evt) => {
+  if (nameControl && !nameControl.contains(evt.target)) {
+    closeDropdown(clientNamePanel, clientInput);
+  }
+  if (idControl && !idControl.contains(evt.target)) {
+    closeDropdown(clientIdPanel, idClientInput);
+  }
+  if (orderControl && !orderControl.contains(evt.target)) {
+    closeDropdown(orderNumPanel, orderInput);
+  }
+});
+
+async function fetchClientsByName(term){
+  lastNameQuery = term;
+  if (nameAbortCtrl) nameAbortCtrl.abort();
+  nameAbortCtrl = new AbortController();
+  try {
+    const res = await fetch(`${CLIENT_LOOKUP_URL}?term=${encodeURIComponent(term)}`, {
+      headers:{'X-CSRFToken':CSRF_TOKEN},
+      signal: nameAbortCtrl.signal
+    });
+    if (!res.ok) return;
+    const entries = await res.json();
+    if (term !== lastNameQuery) return;
+    storeClientSuggestions(entries || []);
+    clientDatalist.innerHTML = (entries||[])
+      .map(entry => `<option value="${escapeHtml(entry.nom_prenom || '')}"></option>`)
+      .join('');
+    renderNameDropdown(entries || []);
+    tryApplyClientFromName();
+  } catch(err){
+    if (err.name !== 'AbortError') {
+      console.error('client lookup failed', err);
+    }
+  }
+}
+
+async function fetchClientsById(term){
+  lastIdQuery = term;
+  if (idAbortCtrl) idAbortCtrl.abort();
+  idAbortCtrl = new AbortController();
+  try {
+    const res = await fetch(`${CLIENT_LOOKUP_URL}?id=${encodeURIComponent(term)}`, {
+      headers:{'X-CSRFToken':CSRF_TOKEN},
+      signal: idAbortCtrl.signal
+    });
+    if (!res.ok) return;
+    const entries = await res.json();
+    if (term !== lastIdQuery) return;
+    storeClientSuggestions(entries || []);
+    idClientDatalist.innerHTML = (entries||[])
+      .map(entry => `<option value="${escapeHtml(entry.id_client || '')}"></option>`)
+      .join('');
+    renderIdDropdown(entries || []);
+    tryApplyClientFromId(true);
+  } catch(err){
+    if (err.name !== 'AbortError') {
+      console.error('client lookup failed', err);
+    }
+  }
+}
+
+async function fetchClientsByOrder(term){
+  lastOrderQuery = term;
+  if (orderAbortCtrl) orderAbortCtrl.abort();
+  orderAbortCtrl = new AbortController();
+  try {
+    const res = await fetch(`${CLIENT_LOOKUP_URL}?cmd=${encodeURIComponent(term)}`, {
+      headers:{'X-CSRFToken':CSRF_TOKEN},
+      signal: orderAbortCtrl.signal
+    });
+    if (!res.ok) return;
+    const entries = await res.json();
+    if (term !== lastOrderQuery) return;
+    storeClientSuggestions(entries || []);
+    orderDatalist.innerHTML = (entries||[])
+      .map(entry => `<option value="${escapeHtml(entry.num_cmd || '')}"></option>`)
+      .join('');
+    renderOrderDropdown(entries || []);
+    tryApplyClientFromOrder(true);
+  } catch(err){
+    if (err.name !== 'AbortError') {
+      console.error('order lookup failed', err);
+    }
+  }
+}
+
+function storeClientSuggestions(entries){
+  (entries || []).forEach(entry => {
+    const nameRaw = String(entry.nom_prenom || '').trim();
+    const idRaw = String(entry.id_client || '').trim();
+    const cmdRaw = String(entry.num_cmd || '').trim();
+    const canalsArray = Array.isArray(entry.canals) ? entry.canals.map(v => String(v || '').trim()).filter(Boolean) : [];
+    const uniqCanals = [];
+    const seenCanals = new Set();
+    canalsArray.forEach(val => {
+      const key = val.toLowerCase();
+      if (!key || seenCanals.has(key)) return;
+      seenCanals.add(key);
+      uniqCanals.push(val);
+    });
+    const dataObj = {
+      nom_prenom: nameRaw,
+      id_client: idRaw,
+      num_cmd: cmdRaw,
+      canals: uniqCanals
+    };
+    if (nameRaw){
+      clientByName.set(nameRaw.toLowerCase(), dataObj);
+    }
+    if (idRaw){
+      clientById.set(idRaw.toLowerCase(), dataObj);
+    }
+    if (cmdRaw){
+      clientByOrder.set(cmdRaw.toLowerCase(), dataObj);
+    }
+  });
+}
+
+function renderNameDropdown(entries){
+  lastNameResults = Array.isArray(entries) ? entries : [];
+  renderCustomDropdown(
+    clientNamePanel,
+    lastNameResults,
+    (entry) => {
+      const value = String((entry && entry.nom_prenom) || '').trim();
+      if (!value) return null;
+      return {
+        value,
+        primary: value,
+        secondary: entry && entry.id_client ? `ID ${entry.id_client}` : '',
+        meta: formatCanalMeta(entry && entry.canals ? entry.canals : []),
+        key: value.toLowerCase()
+      };
+    },
+    clientInput
+  );
+}
+
+function renderIdDropdown(entries){
+  lastIdResults = Array.isArray(entries) ? entries : [];
+  renderCustomDropdown(
+    clientIdPanel,
+    lastIdResults,
+    (entry) => {
+      const value = String((entry && entry.id_client) || '').trim();
+      if (!value) return null;
+      return {
+        value,
+        primary: value,
+        secondary: entry && entry.nom_prenom ? entry.nom_prenom : '',
+        meta: formatCanalMeta(entry && entry.canals ? entry.canals : []),
+        key: value.toLowerCase()
+      };
+    },
+    idClientInput
+  );
+}
+
+function renderOrderDropdown(entries){
+  lastOrderResults = Array.isArray(entries) ? entries : [];
+  renderCustomDropdown(
+    orderNumPanel,
+    lastOrderResults,
+    (entry) => {
+      const value = String((entry && entry.num_cmd) || '').trim();
+      if (!value) return null;
+      return {
+        value,
+        primary: value,
+        secondary: entry && entry.nom_prenom ? entry.nom_prenom : '',
+        meta: entry && entry.id_client ? `ID ${entry.id_client}` : '',
+        key: value.toLowerCase()
+      };
+    },
+    orderInput
+  );
+}
+
+function renderCustomDropdown(panelEl, entries, formatter, inputEl){
+  if (!panelEl || typeof formatter !== 'function') return;
+  const items = [];
+  const seen = new Set();
+  (entries || []).forEach((entry) => {
+    const mapped = formatter(entry);
+    if (!mapped) return;
+    const value = String(mapped.value || '').trim();
+    const primary = String(mapped.primary || '').trim();
+    if (!value || !primary) return;
+    const key = (mapped.key || value).toLowerCase();
+    if (key && seen.has(key)) return;
+    if (key) seen.add(key);
+    items.push({
+      value,
+      primary,
+      secondary: mapped.secondary || '',
+      meta: mapped.meta || ''
+    });
+  });
+  if (!items.length){
+    closeDropdown(panelEl, inputEl);
+    return;
+  }
+  panelEl.innerHTML = items.map(item => `
+    <button type="button" class="datalist-option" role="option" data-value="${escapeHtml(item.value)}">
+      <span class="datalist-option-main">${escapeHtml(item.primary)}</span>
+      ${item.secondary ? `<span class="datalist-option-sub">${escapeHtml(item.secondary)}</span>` : ''}
+      ${item.meta ? `<span class="datalist-option-meta">${escapeHtml(item.meta)}</span>` : ''}
+    </button>
+  `).join('');
+  panelEl.classList.add('show');
+  if (inputEl) inputEl.setAttribute('aria-expanded','true');
+}
+
+function closeDropdown(panelEl, inputEl){
+  if (!panelEl) return;
+  panelEl.classList.remove('show');
+  panelEl.innerHTML = '';
+  if (inputEl) inputEl.setAttribute('aria-expanded','false');
+}
+
+function formatCanalMeta(canals){
+  const cleaned = [];
+  const seen = new Set();
+  (Array.isArray(canals) ? canals : []).forEach((val) => {
+    const value = String(val || '').trim();
+    if (!value) return;
+    const key = value.toLowerCase();
+    if (seen.has(key)) return;
+    seen.add(key);
+    cleaned.push(value);
+  });
+  if (!cleaned.length) return '';
+  return cleaned.slice(0, 3).join(' • ');
+}
+
+function setupDropdownInput(inputEl, panelEl, reopenFn){
+  if (!inputEl || !panelEl) return;
+  inputEl.addEventListener('focus', () => {
+    if (typeof reopenFn === 'function') {
+      reopenFn();
+    }
+  });
+  inputEl.addEventListener('keydown', (evt) => {
+    if (evt.key === 'Escape') {
+      closeDropdown(panelEl, inputEl);
+    }
+  });
+  inputEl.addEventListener('blur', () => {
+    setTimeout(() => closeDropdown(panelEl, inputEl), 120);
+  });
+}
+
+function attachDropdownHandler(panelEl, inputEl, onSelect){
+  if (!panelEl || !inputEl || typeof onSelect !== 'function') return;
+  panelEl.addEventListener('mousedown', (evt) => {
+    const option = evt.target.closest('.datalist-option');
+    if (!option) return;
+    evt.preventDefault();
+    const value = option.getAttribute('data-value') || '';
+    onSelect(value);
+    inputEl.focus();
+    closeDropdown(panelEl, inputEl);
+  });
+}
+
+function tryApplyClientFromName(){
+  if (!clientInput) return;
+  const key = clientInput.value.trim().toLowerCase();
+  if (!key) return;
+  const data = clientByName.get(key);
+  if (!data){
+    renderCanalHint([]);
+    return;
+  }
+  applyClientData(data, {forceOrder:true});
+}
+
+function tryApplyClientFromId(forceName=false){
+  if (!idClientInput) return;
+  const key = idClientInput.value.trim().toLowerCase();
+  if (!key) return;
+  const data = clientById.get(key);
+  if (!data){
+    if (forceName) renderCanalHint([]);
+    return;
+  }
+  applyClientData(data, {forceName, forceOrder:true});
+}
+
+function tryApplyClientFromOrder(forceName=false){
+  if (!orderInput) return;
+  const key = orderInput.value.trim().toLowerCase();
+  if (!key) return;
+  const data = clientByOrder.get(key);
+  if (!data){
+    if (forceName) renderCanalHint([]);
+    return;
+  }
+  applyClientData(data, {forceName, forceOrder:true});
+}
+
+function applyClientData(data, opts = {}){
+  if (!data){
+    renderCanalHint([]);
+    return;
+  }
+  if (idClientInput && data.id_client){
+    idClientInput.value = data.id_client;
+  }
+  if (clientInput && data.nom_prenom && (opts.forceName || !clientInput.value.trim())){
+    clientInput.value = data.nom_prenom;
+  }
+  if (orderInput && data.num_cmd && (opts.forceOrder || !orderInput.value.trim())){
+    orderInput.value = data.num_cmd;
+  }
+  if (Array.isArray(data.canals) && data.canals.length){
+    renderCanalHint(data.canals);
+    if (data.canals.length === 1){
+      selectCanalValue(data.canals[0]);
+    }
+  } else {
+    renderCanalHint([]);
+  }
+  closeDropdown(clientNamePanel, clientInput);
+  closeDropdown(clientIdPanel, idClientInput);
+  closeDropdown(orderNumPanel, orderInput);
+}
+
+function renderCanalHint(canals){
+  if (!canalHint) return;
+  const cleaned = (canals || []).map(v => String(v || '').trim()).filter(Boolean);
+  const unique = [];
+  const seen = new Set();
+  cleaned.forEach(val => {
+    const key = val.toLowerCase();
+    if (!key || seen.has(key)) return;
+    seen.add(key);
+    unique.push(val);
+  });
+  if (!unique.length){
+    canalHint.style.display = 'none';
+    canalHint.innerHTML = '';
+    return;
+  }
+  canalHint.style.display = 'block';
+  const pills = unique.map(canal => `<button type="button" class="btn btn-sm btn-outline-secondary me-1" data-canal="${escapeHtml(canal)}">${escapeHtml(canal)}</button>`).join('');
+  canalHint.innerHTML = `<span class="text-muted me-1">Canaux historiques :</span>${pills}`;
+}
+
+function selectCanalValue(val){
+  if (!canalSelect || !val) return;
+  const desired = String(val).toLowerCase();
+  const match = Array.from(canalSelect.options).find(opt => opt.value.toLowerCase() === desired);
+  if (match){
+    canalSelect.value = match.value;
+  }
+}
+
+if (canalHint){
+  canalHint.addEventListener('click', (evt) => {
+    const btn = evt.target.closest('button[data-canal]');
+    if (!btn) return;
+    selectCanalValue(btn.getAttribute('data-canal'));
+  });
+}
 
 // ====== Étape 1 : Magasins ======
 let magasinsData = [];
